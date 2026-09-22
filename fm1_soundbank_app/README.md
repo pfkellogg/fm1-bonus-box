@@ -5,6 +5,17 @@ presets with where each one actually came from, and lets you reorder them —
 notably, move a piano patch to slot 001 so that's what plays when the FM-1
 powers on.
 
+## Current state of the physical FM-1
+
+Since the device can't be read back over MIDI (see below), this has to be
+tracked by hand — update it whenever you `send` something new.
+
+**As of 2026-09-22**: loaded with the genuine **Yamaha ROM1A/1B/2A/2B**
+factory cartridges (`reference/yamaha_rom/rom1a_piano_first.syx` in bank A,
+`rom1b`/`rom2a`/`rom2b.syx` in B/C/D) — boots into `PIANO 1`. History this
+session: FM-1's own recovered-factory set → genuine Yamaha ROM → Bo
+Tomlyn's Top 40 + Wedding Band → reverted back to genuine Yamaha ROM.
+
 ## Does the FM-1 have a "boot patch" preference?
 
 No. Checked the manual's Global (`GLO`) settings end to end — page 1 is
