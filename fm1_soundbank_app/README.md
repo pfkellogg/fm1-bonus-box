@@ -82,6 +82,41 @@ FM-1's own factory set) — to make a genuine-ROM voice the boot sound,
 reorder within the relevant `rom*.syx` file directly (128-byte packed
 voices, name at offset 118) and resend that one bank.
 
+## More third-party banks: Yamaha VRC cartridges and Bo Tomlyn
+
+Same licensing situation as the ROM banks above — long-circulated in the
+synth community, never openly licensed, included anyway per common
+practice there.
+
+**`reference/yamaha_vrc/`** — all 12 official Yamaha VRC expansion
+cartridges (VRC-101 through VRC-112, `vrc{101-112}{a,b}.syx`, 24 files,
+768 voices), each a themed pair of 32-voice banks from a professional
+sound designer commissioned by Yamaha: 101 keyboard/plucked/percussion,
+102 wind, 103 strings/voice, 104 percussion, 105 sound effects, 106
+synth lead/bass, 107-112 later "Key Clique" designer sets. Source: same
+[yamahablackboxes.com](https://yamahablackboxes.com/patches/dx7/vrc/) archive
+as the ROM banks.
+
+**`reference/bo_tomlyn/`** — 8 of Bo Tomlyn's 9 commercial DX7 cartridges
+(sold via Key Clique in the 80s/90s; Tomlyn worked as a keyboardist/synth
+programmer with Prince, Springsteen, Cher, and others): `analog1`,
+`analog2`, `rock_splits`, `sound_efx`, `standard_splits`, `top40`,
+`unique`, `wedding_band` — each an `_a.syx`/`_b.syx` pair, 16 files, 512
+voices. `top40`/`wedding_band`/`standard_splits`/`rock_splits` are
+keyboard-split patches built for gigging (piano/EP layered with
+strings/bass). The 9th cartridge, "Best of the USA," wasn't recoverable —
+missing from the only surviving archive found (the original
+[dxsysex.com](http://dxsysex.com) host is now a parked/for-sale domain;
+retrieved via a 2022 [Wayback Machine](https://web.archive.org/web/20220401151700/http://dxsysex.com/SYSEX_DX7/Guest/Bo-Tomlyn.zip)
+snapshot of its zip after a Google Drive mirror failed).
+
+Both are large collections relative to the FM-1's 128 slots — send
+whichever specific bank(s) you want the same way as the ROM banks, e.g.:
+```
+python3 fm1_soundbank.py send reference/bo_tomlyn/top40_a.syx
+python3 fm1_soundbank.py send reference/yamaha_vrc/vrc101a.syx
+```
+
 ## Usage
 
 ```
@@ -128,5 +163,7 @@ then `send`.
 - `reference/banks/FM-1_factory_bank[1-4].syx` — untouched factory banks (also your restore-to-stock files)
 - `reference/FM-1_factory_128voices_packed.bin` — same 128 voices, no SysEx wrapper, used internally for fast slicing/reordering
 - `reference/yamaha_rom/{rom1a,rom1b,rom2a,rom2b}.syx` — genuine Yamaha DX7 ROM cartridges, an alternative to the FM-1's own factory set (see above; not openly licensed)
+- `reference/yamaha_vrc/` — all 12 official Yamaha VRC expansion cartridges, 24 files (see above; not openly licensed)
+- `reference/bo_tomlyn/` — 8 of Bo Tomlyn's 9 commercial cartridges, 16 files (see above; not openly licensed)
 - `state/current_order.json` — your working reorder (created on first `move`/`reorder`)
 - `export/` — generated bank files, ready to `send` (created by `export`)
