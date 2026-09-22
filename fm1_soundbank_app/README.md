@@ -53,6 +53,35 @@ inline.
 `reset` + `export` + `send` isn't enough (e.g. after a firmware update
 wipes things differently).
 
+## Genuine Yamaha ROM banks (an alternative to the FM-1's own factory set)
+
+`reference/yamaha_rom/{rom1a,rom1b,rom2a,rom2b}.syx` are the **actual original
+Yamaha DX7 ROM1A/1B/2A/2B factory cartridges** — not the FM-1's own factory
+set above (which is mostly substitute DX7-community patches; only 40/128
+trace back to genuine Yamaha material). Downloaded from
+[yamahablackboxes.com](https://yamahablackboxes.com/patches/dx7/factory/)
+(the same source used by KingParamount's own `tools/get_dx7_factory.sh` and
+by MiniDexed's `getsysex.sh`). Unlike the recovered-factory data above,
+**these are not openly licensed** — Yamaha's original factory patches,
+long-circulating in the synth community but never released under an open
+license. Included here anyway per repeated common practice in that
+community (same tolerance as ROM sharing for retro-hardware emulation).
+
+These are already complete, valid 32-voice DX7 bank dumps — send them
+directly, no `export` step needed:
+```
+python3 fm1_soundbank.py send reference/yamaha_rom/rom1a.syx
+python3 fm1_soundbank.py send reference/yamaha_rom/rom1b.syx
+python3 fm1_soundbank.py send reference/yamaha_rom/rom2a.syx
+python3 fm1_soundbank.py send reference/yamaha_rom/rom2b.syx
+```
+Same on-device A/B/C/D knob confirmation as any other bank send — see
+"Actually applying a reorder on the FM-1" below. Note `move`/`reorder`
+don't work against this data (they're built around `reference/banks/`, the
+FM-1's own factory set) — to make a genuine-ROM voice the boot sound,
+reorder within the relevant `rom*.syx` file directly (128-byte packed
+voices, name at offset 118) and resend that one bank.
+
 ## Usage
 
 ```
@@ -98,5 +127,6 @@ then `send`.
 - `reference/presets_provenance.json` — all 128 factory voices' names + sourcing
 - `reference/banks/FM-1_factory_bank[1-4].syx` — untouched factory banks (also your restore-to-stock files)
 - `reference/FM-1_factory_128voices_packed.bin` — same 128 voices, no SysEx wrapper, used internally for fast slicing/reordering
+- `reference/yamaha_rom/{rom1a,rom1b,rom2a,rom2b}.syx` — genuine Yamaha DX7 ROM cartridges, an alternative to the FM-1's own factory set (see above; not openly licensed)
 - `state/current_order.json` — your working reorder (created on first `move`/`reorder`)
 - `export/` — generated bank files, ready to `send` (created by `export`)
