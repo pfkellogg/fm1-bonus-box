@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
 generate_soundbank_header.py — regenerates fm1_control_box/fm1_soundbank_data.h
-from the reference data vendored into this repo under reference/ (originally
-sourced from KingParamount's fm1-factory-presets recovery, see README.md).
+from the same reference data fm1_soundbank_app/ (this repo's computer-side
+CLI tool) uses, so the ESP32-S3 box and the desktop tool never drift apart.
 
 Source of truth:
-  ../reference/banks/FM-1_factory_128voices_packed.bin  (16384 bytes: 128 x 128-byte packed DX7 voices)
-  ../reference/presets_provenance.json                  (128 names, factory order)
+  ../fm1_soundbank_app/reference/banks/FM-1_factory_128voices_packed.bin  (16384 bytes: 128 x 128-byte packed DX7 voices)
+  ../fm1_soundbank_app/reference/presets_provenance.json                  (128 names, factory order)
 
 Output:
   ../fm1_control_box/fm1_soundbank_data.h
@@ -33,7 +33,7 @@ import json
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-REF_DIR = HERE.parent / "reference"
+REF_DIR = HERE.parent / "fm1_soundbank_app" / "reference"
 PACKED_FILE = REF_DIR / "banks" / "FM-1_factory_128voices_packed.bin"
 PROVENANCE_FILE = REF_DIR / "presets_provenance.json"
 OUT_FILE = HERE.parent / "fm1_control_box" / "fm1_soundbank_data.h"

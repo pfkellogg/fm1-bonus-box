@@ -1,6 +1,6 @@
 # FM-1 Bonus Box
 
-A small companion board for the [M-VAVE FM-1](https://www.m-vave.com/products), talking to it over its 3.5mm TRS MIDI IN. Started as a sustain-pedal-to-CC64 converter on a spare Arduino Uno R3 (**v1**, below); as of 2026-09-22 it's being rebuilt around an **ESP32-S3 Mini** (**v2**, current) to add live preset browsing, a one-button way to set the FM-1's boot sound, and standalone soundbank management over WiFi — in the same small enclosure.
+A small companion board for the [M-VAVE FM-1](https://www.m-vave.com/products), talking to it over its 3.5mm TRS MIDI IN. Started as a sustain-pedal-to-CC64 converter on a spare Arduino Uno R3 (**v1**, below); as of 2026-09-22 it's being rebuilt around an **ESP32-S3 Mini** (**v2**, current) to add live preset browsing, a one-button way to set the FM-1's boot sound, and standalone soundbank management over WiFi — in the same small enclosure. Also includes [`fm1_soundbank_app`](fm1_soundbank_app/), a computer-side CLI for listing, reordering, and restoring the FM-1's 128-preset soundbank over USB MIDI — useful on its own even without building the box.
 
 ## v2 — ESP32-S3 Control Box (current)
 
@@ -10,7 +10,7 @@ Same sustain-pedal/button job as v1, plus:
 - A 1.28" round GC9A01 color TFT (240x240, SPI) shows the browsed preset, **color-coded by category** (piano/organ/synth lead/pad, guitar/bass, brass/woodwind/string/voice, percussion — see "Categories" below) so you recognize where you are in the list at a glance while spinning through it, not just by reading text — plus preset number/name, category name, active bank source, and sustain state.
 - **Two bank sources, switchable from the box**: FACTORY (the recovered-factory set embedded in flash) and CUSTOM (your own set, stored in the ESP32's own filesystem — see "Different FM-1 units, different soundbanks" below for why this exists). Short-press the encoder to toggle between them.
 - **A medium press (release between 400ms-3s) "Assigns"** the currently browsed preset — from whichever source is active — to slot 001. The FM-1 always powers on at whatever's in slot 001 (there's no separate boot-preset preference — confirmed by checking the manual's Global settings end to end and by testing directly on the device), so this is how you set the boot sound from the box itself, no computer needed.
-- **A long press (3s+) opens WiFi Upload Mode**: the box becomes its own WiFi access point serving a small upload page, so you can push a new CUSTOM bank in from any phone or laptop browser — no MIDI cable, no `fm1_soundbank_app`, no computer running special software, ever, after the box itself is flashed.
+- **A long press (3s+) opens WiFi Upload Mode**: the box becomes its own WiFi access point serving a small upload page, so you can push a new CUSTOM bank in from any phone or laptop browser — no MIDI cable, no [`fm1_soundbank_app`](fm1_soundbank_app/) computer tool, no computer running special software, ever, after the box itself is flashed.
 
 **Compiles clean** against `esp32:esp32:esp32s3` (77% flash / 22% RAM — the WiFi stack is most of that jump) as of 2026-09-22. **Not yet built or bench-tested** — no physical board yet, same caveat as any new circuit in this project. **Requires a partition scheme with LittleFS/SPIFFS** (Tools > Partition Scheme, e.g. "Default 4MB with spiffs") for CUSTOM bank storage to work.
 
@@ -20,7 +20,7 @@ Worth understanding before relying on any of this: **FM-1 units in the wild don'
 
 **The FM-1 can't be asked what it currently has loaded.** It only receives SysEx voice data over MIDI — it never transmits its own voices back, to this box, to a computer, or to anything else. That's not a software limitation to work around; it's how the hardware/firmware is built (same reason KingParamount had to intercept M-VAVE's own restore-tool traffic to recover the FACTORY set at all, rather than just asking the device). So if your FM-1's current soundbank is better than FACTORY, **this box cannot extract it from the device** — nothing can, over MIDI.
 
-What it *can* do: hold a second full soundbank (CUSTOM) in its own storage, and push either source to the FM-1 on demand. Getting your preferred voices into CUSTOM means having them as standard DX7 bank `.syx` files from wherever they originally came from — Dexed, a SysEx librarian, a backup taken before an import, etc. — and uploading those via WiFi Upload Mode (below). If you don't already have `.syx` backups of whatever's better about your unit's current set, there unfortunately isn't a way to generate them after the fact; back up voices you care about *before* overwriting them, the same caution that applies to using `fm1_soundbank_app` from a computer.
+What it *can* do: hold a second full soundbank (CUSTOM) in its own storage, and push either source to the FM-1 on demand. Getting your preferred voices into CUSTOM means having them as standard DX7 bank `.syx` files from wherever they originally came from — Dexed, a SysEx librarian, a backup taken before an import, etc. — and uploading those via WiFi Upload Mode (below). If you don't already have `.syx` backups of whatever's better about your unit's current set, there unfortunately isn't a way to generate them after the fact; back up voices you care about *before* overwriting them, the same caution that applies to using [`fm1_soundbank_app`](fm1_soundbank_app/) from a computer.
 
 ### Controls
 
@@ -38,7 +38,7 @@ The screen shows a live hint ("release: ASSIGN" / "release: WIFI UPLOAD") once y
 
 1. Hold the encoder button 3+ seconds. The box becomes a WiFi access point: SSID `FM1-ControlBox`, password `fm1setup1` (change both in the sketch before relying on this outside a trusted room — this is an open, unencrypted-beyond-WPA2-PSK local AP, not meant to be internet-facing).
 2. Connect a phone or laptop to that network, browse to `http://192.168.4.1`.
-3. Pick which quarter (Bank A/B/C/D, matching presets 001-032/033-064/065-096/097-128) and choose a `.syx` file — a standard 4104-byte DX7 32-voice bank dump, the same format `fm1_soundbank_app`'s `export` produces and any SysEx librarian (Dexed, PocketMIDI, SysEx Librarian...) can save. Upload.
+3. Pick which quarter (Bank A/B/C/D, matching presets 001-032/033-064/065-096/097-128) and choose a `.syx` file — a standard 4104-byte DX7 32-voice bank dump, the same format [`fm1_soundbank_app`](fm1_soundbank_app/)'s `export` produces and any SysEx librarian (Dexed, PocketMIDI, SysEx Librarian...) can save. Upload.
 4. Repeat for any other quarters you want to set. Unset quarters keep whatever they already had (a fresh CUSTOM bank starts as a full copy of FACTORY, so it's always fully playable even if you only ever upload one quarter).
 5. Hold the encoder 3+ seconds again to close WiFi mode. Short-press to switch to CUSTOM if it wasn't already active, then browse/Assign as usual.
 
@@ -208,17 +208,18 @@ fm1_control_box/                       v2 — ESP32-S3 firmware
   fm1_control_box.ino
   fm1_soundbank_data.h                 generated, see tools/ below
 fm1_sustain_footswitch.ino             v1 — Arduino Uno firmware
+fm1_soundbank_app/                     computer-side CLI: list/reorder/send the FM-1's soundbank over USB MIDI
+  fm1_soundbank.py
+  README.md                            its own docs — provenance, boot-patch findings, usage
+  reference/                           soundbank data (see below) — shared source of truth for
+                                        both this CLI tool and fm1_control_box's embedded FACTORY set
 schematics/
   generate_fm1_control_box_schematic.py / fm1_control_box_*.{pdf,png,svg}   v2 diagrams
   generate_fm1_footswitch_schematic.py / fm1_footswitch_*.{pdf,png,svg}     v1 diagrams
 tools/
-  generate_soundbank_header.py         regenerates fm1_soundbank_data.h from reference/
-reference/                             vendored soundbank data (see below)
-  presets_provenance.json
-  banks/FM-1_factory_bank[1-4].syx     factory bank dumps, also your restore-to-stock files
-  banks/FM-1_factory_128voices_packed.bin
+  generate_soundbank_header.py         regenerates fm1_control_box/fm1_soundbank_data.h from fm1_soundbank_app/reference/
 ```
 
-`reference/` is vendored from [KingParamount/fm1-factory-presets](https://github.com/KingParamount/fm1-factory-presets), so this repo's build scripts are self-contained and don't depend on a separate project:
-- `banks/*.syx` and `banks/FM-1_factory_128voices_packed.bin` are that repo's own SysEx capture/decode work, released [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (public domain) — the voice parameters themselves originate from Yamaha ROM/VRC cartridges and the community Dexed_cart 1.0 compilation, as selected/renamed by M-VAVE; see that repo's LICENCE.md and docs/protocol-and-provenance.md for the full per-voice trace and individual patch-author credits.
-- `presets_provenance.json` was generated this session from that repo's `docs/protocol-and-provenance.md` (CC BY-SA 4.0) — attributed here accordingly.
+`fm1_soundbank_app/reference/` is vendored from [KingParamount/fm1-factory-presets](https://github.com/KingParamount/fm1-factory-presets):
+- `reference/banks/*.syx` and `reference/banks/FM-1_factory_128voices_packed.bin` are that repo's own SysEx capture/decode work, released [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (public domain) — the voice parameters themselves originate from Yamaha ROM/VRC cartridges and the community Dexed_cart 1.0 compilation, as selected/renamed by M-VAVE; see that repo's LICENCE.md and docs/protocol-and-provenance.md for the full per-voice trace and individual patch-author credits.
+- `reference/presets_provenance.json` was generated this session from that repo's `docs/protocol-and-provenance.md` (CC BY-SA 4.0) — attributed here accordingly.

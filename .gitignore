@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 .venv/
 .DS_Store
+fm1_soundbank_app/state/
+fm1_soundbank_app/export/
