@@ -1,0 +1,1026 @@
+[
+  {
+    "slot": 0,
+    "preset_number": 1,
+    "name": "PIANO 1",
+    "dexed_cart_source": "`!Instruments/Keyboard/Piano/Electric Piano/EP03.SYX` v26",
+    "original_name": "E.PIANO 1",
+    "yamaha_cartridge": "ROM1A v11 E.PIANO 1"
+  },
+  {
+    "slot": 1,
+    "preset_number": 2,
+    "name": "ORGAN 1",
+    "dexed_cart_source": "`!Instruments/Keyboard/Organ/Organ1/ORGAN04.SYX` v12",
+    "original_name": "E.ORGAN 1",
+    "yamaha_cartridge": "ROM1A v17 E.ORGAN 1"
+  },
+  {
+    "slot": 2,
+    "preset_number": 3,
+    "name": "SYN LEAD 1",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Lead/LEAD02.SYX` v1",
+    "original_name": "LEADSYN 7",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 3,
+    "preset_number": 4,
+    "name": "SYN PAD 1",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Synth Pads/PADS04.SYX` v5",
+    "original_name": "PERFECTPAD",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 4,
+    "preset_number": 5,
+    "name": "PIANO 2",
+    "dexed_cart_source": "`!Instruments/Keyboard/Piano/Electric Piano/EP04.SYX` v20",
+    "original_name": "E.PIANO 20",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 5,
+    "preset_number": 6,
+    "name": "Organ 2",
+    "dexed_cart_source": "`!Instruments/Keyboard/Organ/Organ1/ORGAN04.SYX` v29",
+    "original_name": "E.Organ 2",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 6,
+    "preset_number": 7,
+    "name": "SYN LEAD 2",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Lead/LEAD01.SYX` v25",
+    "original_name": "LEADSYN 2",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 7,
+    "preset_number": 8,
+    "name": "SYN PAD 2",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Synth Pads/PADS04.SYX` v32",
+    "original_name": "Voc Pad  1",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 8,
+    "preset_number": 9,
+    "name": "PIANO3",
+    "dexed_cart_source": "`!Instruments/Keyboard/Piano/Electric Piano/EP05.SYX` v23",
+    "original_name": "E.PIANO 58",
+    "yamaha_cartridge": "ROM3B v06 E.PIANO 3"
+  },
+  {
+    "slot": 9,
+    "preset_number": 10,
+    "name": "ORGAN 3",
+    "dexed_cart_source": "`!Instruments/Keyboard/Organ/Organ1/ORGAN05.SYX` v11",
+    "original_name": "E.Organ 3",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 10,
+    "preset_number": 11,
+    "name": "SYN LEAD 3",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Lead/LEAD01.SYX` v27",
+    "original_name": "LEADSYN 3",
+    "yamaha_cartridge": "ROM4B v12 LEAD GUITR"
+  },
+  {
+    "slot": 11,
+    "preset_number": 12,
+    "name": "SYN PAD 3",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Synth Pads/PADS04.SYX` v16",
+    "original_name": "StringPad\\",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 12,
+    "preset_number": 13,
+    "name": "PIANO 4",
+    "dexed_cart_source": "`!Instruments/Keyboard/Piano/Electric Piano/EP05.SYX` v8",
+    "original_name": "E.PIANO 4",
+    "yamaha_cartridge": "ROM3B v07 E.PIANO 4"
+  },
+  {
+    "slot": 13,
+    "preset_number": 14,
+    "name": "ORGAN 4",
+    "dexed_cart_source": "`!Instruments/Keyboard/Organ/Organ1/ORGAN05.SYX` v23",
+    "original_name": "E.ORGAN 40",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 14,
+    "preset_number": 15,
+    "name": "SYN LEAD 4",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Lead/LEAD01.SYX` v28",
+    "original_name": "LEADSYN 4",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 15,
+    "preset_number": 16,
+    "name": "SYN PAD 4",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Synth Pads/PADS04.SYX` v15",
+    "original_name": "SPACE PAD",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 16,
+    "preset_number": 17,
+    "name": "PIANO 5",
+    "dexed_cart_source": "`!Instruments/Keyboard/Piano/Electric Piano/E_PIANO1.SYX` v10",
+    "original_name": "E.PIANO 5A",
+    "yamaha_cartridge": "ROM1A v11 E.PIANO 1"
+  },
+  {
+    "slot": 17,
+    "preset_number": 18,
+    "name": "ORGAN 5",
+    "dexed_cart_source": "`!Instruments/Keyboard/Organ/Organ1/ORGAN05.SYX` v1",
+    "original_name": "E.ORGAN 2",
+    "yamaha_cartridge": "ROM3B v13 E.ORGAN 2"
+  },
+  {
+    "slot": 18,
+    "preset_number": 19,
+    "name": "SYN LEAD 5",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Lead/LEAD01.SYX` v11",
+    "original_name": "FAT LEAD",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 19,
+    "preset_number": 20,
+    "name": "SYN PAD 5",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Synth Pads/PADS04.SYX` v12",
+    "original_name": "Slow3D Pad",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 20,
+    "preset_number": 21,
+    "name": "PIANO 6",
+    "dexed_cart_source": "`!Instruments/Keyboard/Piano/Electric Piano/EP04.SYX` v4",
+    "original_name": "E.PIANO 13",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 21,
+    "preset_number": 22,
+    "name": "ORGAN 6",
+    "dexed_cart_source": "`!Instruments/Keyboard/Organ/Organ1/ORGAN05.SYX` v20",
+    "original_name": "E.ORGAN 39",
+    "yamaha_cartridge": "ROM3B v14 E.ORGAN 3"
+  },
+  {
+    "slot": 22,
+    "preset_number": 23,
+    "name": "SYN LEAD 6",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Lead/LEAD01.SYX` v31",
+    "original_name": "LEADSYN 5",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 23,
+    "preset_number": 24,
+    "name": "SYN PAD 6",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Synth Pads/PADS03.SYX` v14",
+    "original_name": "MODERN PAD",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 24,
+    "preset_number": 25,
+    "name": "PIANO 7",
+    "dexed_cart_source": "`!Instruments/Keyboard/Piano/Electric Piano/EP05.SYX` v27",
+    "original_name": "E.PIANO 7",
+    "yamaha_cartridge": "VRC101A v09 E.PIANO  3"
+  },
+  {
+    "slot": 25,
+    "preset_number": 26,
+    "name": "ORGAN 7",
+    "dexed_cart_source": "`!Instruments/Keyboard/Organ/Organ1/ORGAN05.SYX` v32",
+    "original_name": "E.ORGAN 60",
+    "yamaha_cartridge": "ROM1B v15 E.ORGAN 4"
+  },
+  {
+    "slot": 26,
+    "preset_number": 27,
+    "name": "SYN LEAD 7",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Lead/LEAD01.SYX` v32",
+    "original_name": "LEADSYN 6",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 27,
+    "preset_number": 28,
+    "name": "SYN PAD 7",
+    "dexed_cart_source": "`!Instruments/Effects/EFFECTS8.SYX` v6",
+    "original_name": "'JudgemtHM",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 28,
+    "preset_number": 29,
+    "name": "PIANO 8",
+    "dexed_cart_source": "`!Instruments/Keyboard/Piano/Electric Piano/EP05.SYX` v28",
+    "original_name": "E.PIANO 7",
+    "yamaha_cartridge": "VRC101A v10 E.PIANO  4"
+  },
+  {
+    "slot": 29,
+    "preset_number": 30,
+    "name": "ORGAN 8",
+    "dexed_cart_source": "`!Instruments/Keyboard/Organ/Organ1/ORGAN05.SYX` v29",
+    "original_name": "E.ORGAN 52",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 30,
+    "preset_number": 31,
+    "name": "SYN LEAD 8",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Lead/LEAD02.SYX` v4",
+    "original_name": "METAL LEAD",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 31,
+    "preset_number": 32,
+    "name": "SYN PAD 8",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Synth Pads/PADS03.SYX` v17",
+    "original_name": "MOVIE PAD",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 32,
+    "preset_number": 33,
+    "name": "GUITAR 1",
+    "dexed_cart_source": "`!Instruments/Plucked/Guitar/GTRS_A-D.SYX` v3",
+    "original_name": "BLUES GUIT",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 33,
+    "preset_number": 34,
+    "name": "DS GUITAR1",
+    "dexed_cart_source": "`!Instruments/Plucked/Guitar/Guitar2/GUITAR02.SYX` v14",
+    "original_name": "DIST.GUIT",
+    "yamaha_cartridge": "VRC109A v22 DIST.GUIT"
+  },
+  {
+    "slot": 34,
+    "preset_number": 35,
+    "name": "BASS 1",
+    "dexed_cart_source": "`!Instruments/Plucked/Bass/Bass1/BASS001.SYX` v2",
+    "original_name": "*Bass-Synt",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 35,
+    "preset_number": 36,
+    "name": "SYN BASS1",
+    "dexed_cart_source": "`!Instruments/Plucked/Bass/Bass1/BASS007.SYX` v4",
+    "original_name": "DENTIST",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 36,
+    "preset_number": 37,
+    "name": "GUITAR 2",
+    "dexed_cart_source": "`!Instruments/Plucked/Guitar/GTRS_N-R.SYX` v1",
+    "original_name": "NYLON G1TR",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 37,
+    "preset_number": 38,
+    "name": "DS GUITAR2",
+    "dexed_cart_source": "`!Instruments/Plucked/Guitar/GTRS_EL.SYX` v1",
+    "original_name": "DS.GUITAR1",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 38,
+    "preset_number": 39,
+    "name": "BASS 2",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Synth08/SYST_BB.SYX` v14",
+    "original_name": "*DISCOBASS",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 39,
+    "preset_number": 40,
+    "name": "SYN BASS2",
+    "dexed_cart_source": "`!Instruments/Plucked/Bass/Bass1/BASS007.SYX` v8",
+    "original_name": "DigiBass \\",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 40,
+    "preset_number": 41,
+    "name": "GUITAR 3",
+    "dexed_cart_source": "`!Instruments/Keyboard/Piano/Piano4/piano clav harp pipes gtr.syx` v28",
+    "original_name": "BANJO",
+    "yamaha_cartridge": "ROM1B v28 BANJO"
+  },
+  {
+    "slot": 41,
+    "preset_number": 42,
+    "name": "DS GUITAR3",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Synth06/syndec2.syx` v31",
+    "original_name": "DS.GUITAR2",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 42,
+    "preset_number": 43,
+    "name": "BASS 3",
+    "dexed_cart_source": "`!Instruments/Plucked/Bass/Bass1/BASS001.SYX` v20",
+    "original_name": "Ac.Bass*5",
+    "yamaha_cartridge": "ROM1B v32 BASS    4"
+  },
+  {
+    "slot": 43,
+    "preset_number": 44,
+    "name": "SYN BASS3",
+    "dexed_cart_source": "`!Instruments/Misc/Dx111.syx` v17",
+    "original_name": "DOLBY BASS",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 44,
+    "preset_number": 45,
+    "name": "GUITAR 4",
+    "dexed_cart_source": "`!Instruments/Plucked/Guitar/GTRS_01.SYX (differs by 6)` v5",
+    "original_name": "GUITAR  1",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 45,
+    "preset_number": 46,
+    "name": "DS GUITAR4",
+    "dexed_cart_source": "`!Instruments/Plucked/Guitar/GTRS_D.SYX` v3",
+    "original_name": "E.GUITAR 2",
+    "yamaha_cartridge": "VRC101A v26 E.GUITAR 2"
+  },
+  {
+    "slot": 46,
+    "preset_number": 47,
+    "name": "BASS 4",
+    "dexed_cart_source": "`!Instruments/Plucked/Bass/Bass1/BASS001.SYX` v9",
+    "original_name": "*Walk Bass",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 47,
+    "preset_number": 48,
+    "name": "SYN BASS4",
+    "dexed_cart_source": "`!Instruments/Misc/MISC_21.SYX` v32",
+    "original_name": "DONT FRET.",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 48,
+    "preset_number": 49,
+    "name": "GUITAR 5",
+    "dexed_cart_source": "`!Instruments/Plucked/Guitar/GTRS_A-D.SYX (differs by 1)` v12",
+    "original_name": "JAZZ GUITR",
+    "yamaha_cartridge": "ROM3A v15 JAZZ GUIT1"
+  },
+  {
+    "slot": 49,
+    "preset_number": 50,
+    "name": "DS GUITAR5",
+    "dexed_cart_source": "`!Instruments/Plucked/Guitar/GTRS_EL.SYX` v13",
+    "original_name": "PWR-GUITAR",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 50,
+    "preset_number": 51,
+    "name": "BASS 5",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Synth08/SYST_BB.SYX` v12",
+    "original_name": "*Funkbass",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 51,
+    "preset_number": 52,
+    "name": "SYN BASS5",
+    "dexed_cart_source": "`!Instruments/Keyboard/Piano/PIANO_13.SYX` v17",
+    "original_name": "DX9. 8",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 52,
+    "preset_number": 53,
+    "name": "GUITAR 6",
+    "dexed_cart_source": "`!Instruments/Misc/Bank0047.syx` v24",
+    "original_name": "FOLK GUIT",
+    "yamaha_cartridge": "ROM3B v25 FOLK GUIT"
+  },
+  {
+    "slot": 53,
+    "preset_number": 54,
+    "name": "DS GUITAR6",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/dirty/SYDRTY01.SYX` v6",
+    "original_name": "HEAVYMETL2",
+    "yamaha_cartridge": "ROM3A v21 HEAVYMETAL"
+  },
+  {
+    "slot": 54,
+    "preset_number": 55,
+    "name": "BASS 6",
+    "dexed_cart_source": "`!Instruments/Plucked/Bass/Bass1/BASS001.SYX` v7",
+    "original_name": "*Slap Bass",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 55,
+    "preset_number": 56,
+    "name": "SYN BASS6",
+    "dexed_cart_source": "`!Instruments/Plucked/Bass/Bass1/BASS007.SYX` v24",
+    "original_name": "E BASS 4",
+    "yamaha_cartridge": "VRC106B v04 SYN.BASS10"
+  },
+  {
+    "slot": 56,
+    "preset_number": 57,
+    "name": "GUITAR 7",
+    "dexed_cart_source": "`!Instruments/Keyboard/Piano/Piano4/piano clav harp pipes gtr.syx` v23",
+    "original_name": "GUITAR  3",
+    "yamaha_cartridge": "ROM1B v23 GUITAR  3"
+  },
+  {
+    "slot": 57,
+    "preset_number": 58,
+    "name": "DS GUITAR7",
+    "dexed_cart_source": "`!Instruments/Plucked/Guitar/GTRS_L-N.SYX` v4",
+    "original_name": "LEAD-GUITR",
+    "yamaha_cartridge": "ROM4B v12 LEAD GUITR"
+  },
+  {
+    "slot": 58,
+    "preset_number": 59,
+    "name": "BASS 7",
+    "dexed_cart_source": "`!Instruments/Plucked/Bass/Bass1/BASS007.SYX` v27",
+    "original_name": "E BASS 5",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 59,
+    "preset_number": 60,
+    "name": "SYN BASS7",
+    "dexed_cart_source": "`!Instruments/Plucked/Bass/Bass1/BASS007.SYX` v28",
+    "original_name": "E BASS 6",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 60,
+    "preset_number": 61,
+    "name": "GUITAR 8",
+    "dexed_cart_source": "`!Instruments/Plucked/Guitar/Guitar2/GUITAR09.SYX` v24",
+    "original_name": "Guit el 24",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 61,
+    "preset_number": 62,
+    "name": "DS GUITAR8",
+    "dexed_cart_source": "`!Instruments/Plucked/Guitar/GTRS_D.SYX` v16",
+    "original_name": "FUZZ GUIT1",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 62,
+    "preset_number": 63,
+    "name": "BASS 8",
+    "dexed_cart_source": "`!Instruments/Plucked/Bass/Bass1/BASS007.SYX` v31",
+    "original_name": "E BASS 85",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 63,
+    "preset_number": 64,
+    "name": "SYN BASS8",
+    "dexed_cart_source": "`!Instruments/Plucked/Bass/Bass1/BASS007.SYX` v32",
+    "original_name": "E BASS IC",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 64,
+    "preset_number": 65,
+    "name": "BRASS 1",
+    "dexed_cart_source": "`!Instruments/Brass/Brass1/BRASS-01.SYX` v1",
+    "original_name": "*Bay.Brass",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 65,
+    "preset_number": 66,
+    "name": "WOODWIND 1",
+    "dexed_cart_source": "`!Instruments/Brass/Brass4/brass wind flutes.syx` v27",
+    "original_name": "*Bassoon 1",
+    "yamaha_cartridge": "VRC102A v17 BASSOON  3"
+  },
+  {
+    "slot": 66,
+    "preset_number": 67,
+    "name": "STRING 1",
+    "dexed_cart_source": "`!Instruments/Percussion/Bells/BELLTEL.SYX` v15",
+    "original_name": "WARM STRNG",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 67,
+    "preset_number": 68,
+    "name": "VOICE 1",
+    "dexed_cart_source": "`!Instruments/Misc/MISC_06.SYX` v26",
+    "original_name": "*TheRiddle",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 68,
+    "preset_number": 69,
+    "name": "BRASS 2",
+    "dexed_cart_source": "`!Instruments/Brass/Brass1/BRASS-01.SYX` v2",
+    "original_name": "*Bellbrass",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 69,
+    "preset_number": 70,
+    "name": "WOODWIND 2",
+    "dexed_cart_source": "`!Instruments/Brass/Brass4/brass wind flutes.syx` v28",
+    "original_name": "*Bassoon 2",
+    "yamaha_cartridge": "VRC102A v15 BASSOON  1"
+  },
+  {
+    "slot": 70,
+    "preset_number": 71,
+    "name": "STRING 2",
+    "dexed_cart_source": "`!Instruments/Orchestra/ORCHESTR.SYX` v5",
+    "original_name": "STRG ENS 1",
+    "yamaha_cartridge": "ROM3A v03 STRG ENS 1"
+  },
+  {
+    "slot": 71,
+    "preset_number": 72,
+    "name": "VOICE 2",
+    "dexed_cart_source": "`!Instruments/Voice/Voice2/VOICE01.SYX` v2",
+    "original_name": "*Vox Human",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 72,
+    "preset_number": 73,
+    "name": "BRASS 3",
+    "dexed_cart_source": "`!Instruments/Brass/Brass1/BRASS-01.SYX` v3",
+    "original_name": "*Brass 5+",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 73,
+    "preset_number": 74,
+    "name": "WOODWIND 3",
+    "dexed_cart_source": "`!Instruments/Brass/Brass4/brass wind flutes.syx` v17",
+    "original_name": "*Harmonica",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 74,
+    "preset_number": 75,
+    "name": "STRING 3",
+    "dexed_cart_source": "`!Instruments/Strings/Strings1/STRING1.SYX` v11",
+    "original_name": "NSTRNG 425",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 75,
+    "preset_number": 76,
+    "name": "VOICE 3",
+    "dexed_cart_source": "`!Instruments/Voice/Voice2/VOICE01.SYX` v14",
+    "original_name": "COSMVOICE",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 76,
+    "preset_number": 77,
+    "name": "BRASS 4",
+    "dexed_cart_source": "`!Instruments/Brass/Brass1/BRASS-01.SYX` v4",
+    "original_name": "*Fl.Horn",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 77,
+    "preset_number": 78,
+    "name": "WOODWIND 4",
+    "dexed_cart_source": "`!Instruments/Brass/Brass4/brass wind flutes.syx` v25",
+    "original_name": "*Oboe",
+    "yamaha_cartridge": "VRC102A v09 OBOE     2"
+  },
+  {
+    "slot": 78,
+    "preset_number": 79,
+    "name": "STRING 4",
+    "dexed_cart_source": "`!Instruments/Strings/Strings1/STRING1.SYX` v4",
+    "original_name": "HI STR.ENS",
+    "yamaha_cartridge": "ROM1A v05 STRINGS 2"
+  },
+  {
+    "slot": 79,
+    "preset_number": 80,
+    "name": "VOICE 4",
+    "dexed_cart_source": "`!Instruments/Misc/DX72MR2.SYX` v22",
+    "original_name": "FL.CLOUD A",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 80,
+    "preset_number": 81,
+    "name": "BRASS 5",
+    "dexed_cart_source": "`!Instruments/Brass/Brass1/BRASS-01.SYX` v5",
+    "original_name": "*Horn 2",
+    "yamaha_cartridge": "VRC102A v23 HORN     2"
+  },
+  {
+    "slot": 81,
+    "preset_number": 82,
+    "name": "WOODWIND 5",
+    "dexed_cart_source": "`!Instruments/Woodwind/WIND--01.SYX` v10",
+    "original_name": "9accordian",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 82,
+    "preset_number": 83,
+    "name": "STRING 5",
+    "dexed_cart_source": "`!Instruments/Misc/Dx7_0628.syx` v19",
+    "original_name": "Orchestra",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 83,
+    "preset_number": 84,
+    "name": "VOICE 5",
+    "dexed_cart_source": "`!Instruments/Percussion/Drums/Drmoct.syx` v1",
+    "original_name": "99  VOICES",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 84,
+    "preset_number": 85,
+    "name": "BRASS 6",
+    "dexed_cart_source": "`!Instruments/Brass/Brass1/BRASS-01.SYX` v6",
+    "original_name": "*Keybrass",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 85,
+    "preset_number": 86,
+    "name": "WOODWIND 6",
+    "dexed_cart_source": "`!Instruments/Woodwind/FLUTE01.SYX` v2",
+    "original_name": "*Panfloete",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 86,
+    "preset_number": 87,
+    "name": "STRING 6",
+    "dexed_cart_source": "`!Instruments/Misc/Bank0043.syx` v13",
+    "original_name": "STRG ENS 2",
+    "yamaha_cartridge": "ROM4A v14 STRG ENS 2"
+  },
+  {
+    "slot": 87,
+    "preset_number": 88,
+    "name": "VOICE 6",
+    "dexed_cart_source": "`!Instruments/Misc/MORTEGA.SYX` v29",
+    "original_name": "ANGELS AAH",
+    "yamaha_cartridge": "ROM2A v21 VOICE   3"
+  },
+  {
+    "slot": 88,
+    "preset_number": 89,
+    "name": "BRASS 7",
+    "dexed_cart_source": "`!Instruments/Brass/Brass1/BRASS-01.SYX` v7",
+    "original_name": "*Pia-Brass",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 89,
+    "preset_number": 90,
+    "name": "WOODWIND 7",
+    "dexed_cart_source": "`!Instruments/Accordion/ACCORD01.SYX` v1",
+    "original_name": "ACCORDION",
+    "yamaha_cartridge": "ROM1B v21 ACCORDION"
+  },
+  {
+    "slot": 90,
+    "preset_number": 91,
+    "name": "STRING 7",
+    "dexed_cart_source": "`!Instruments/Strings/Strings1/STRING1.SYX` v7",
+    "original_name": "FAT ENSEM",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 91,
+    "preset_number": 92,
+    "name": "VOICE 7",
+    "dexed_cart_source": "`!Instruments/Misc/TEXTURES.SYX` v10",
+    "original_name": "ANGEL A --",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 92,
+    "preset_number": 93,
+    "name": "BRASS 8",
+    "dexed_cart_source": "`!Instruments/Brass/Brass1/BRASS-01.SYX` v8",
+    "original_name": "*Trombone",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 93,
+    "preset_number": 94,
+    "name": "WOODWIND 8",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Synth01/SYNTH002.SYX` v28",
+    "original_name": "?Flooty",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 94,
+    "preset_number": 95,
+    "name": "STRING 8",
+    "dexed_cart_source": "`!Instruments/Misc/d quatro a.syx` v2",
+    "original_name": "HI STRINGS",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 95,
+    "preset_number": 96,
+    "name": "VOICE 8",
+    "dexed_cart_source": "`!Instruments/Misc/POWERPLY.SYX` v10",
+    "original_name": "ANGEL B --",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 96,
+    "preset_number": 97,
+    "name": "BOWOAN",
+    "dexed_cart_source": "`!Instruments/Percussion/Perc.SYX` v1",
+    "original_name": "BOWOAN",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 97,
+    "preset_number": 98,
+    "name": "BDWHOCARES",
+    "dexed_cart_source": "`!Instruments/Percussion/PERCUS_4.SYX` v19",
+    "original_name": "BDWHOCARES",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 98,
+    "preset_number": 99,
+    "name": "BLOCK",
+    "dexed_cart_source": "`!Instruments/Ethnic/Latin/LATIN.SYX` v6",
+    "original_name": "BLOCK",
+    "yamaha_cartridge": "ROM2A v30 BLOCK"
+  },
+  {
+    "slot": 99,
+    "preset_number": 100,
+    "name": "WAVES",
+    "dexed_cart_source": "`!Instruments/Effects/Effect-1.syx` v32",
+    "original_name": "WAVES",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 100,
+    "preset_number": 101,
+    "name": "FROGBELL",
+    "dexed_cart_source": "`!Instruments/Misc/DX148.SYX` v10",
+    "original_name": "FROGBELL",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 101,
+    "preset_number": 102,
+    "name": "ELECT.GONG",
+    "dexed_cart_source": "`!Instruments/Misc/MISC_19.SYX` v27",
+    "original_name": "ELECT.GONG",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 102,
+    "preset_number": 103,
+    "name": "TORIMTORA2",
+    "dexed_cart_source": "`!Instruments/Ethnic/Latin/LATIN.SYX` v7",
+    "original_name": "TORIMTORA2",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 103,
+    "preset_number": 104,
+    "name": "MONO M",
+    "dexed_cart_source": "`!Instruments/Effects/WEIRD1.SYX` v10",
+    "original_name": "MONO M",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 104,
+    "preset_number": 105,
+    "name": "TIBET",
+    "dexed_cart_source": "`!Instruments/Keyboard/Synth/Synth01/SYNTH048.SYX` v18",
+    "original_name": "TIBET",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 105,
+    "preset_number": 106,
+    "name": "LOG DRUM",
+    "dexed_cart_source": "`!Instruments/Misc/Bank0043.syx` v29",
+    "original_name": "LOG DRUM",
+    "yamaha_cartridge": "ROM4A v30 LOG DRUM"
+  },
+  {
+    "slot": 106,
+    "preset_number": 107,
+    "name": "COWBELL",
+    "dexed_cart_source": "`!Instruments/Misc/Bank0043.syx` v26",
+    "original_name": "COWBELL",
+    "yamaha_cartridge": "ROM2A v29 COW BELL"
+  },
+  {
+    "slot": 107,
+    "preset_number": 108,
+    "name": "MONO Z",
+    "dexed_cart_source": "`!Instruments/Effects/WEIRD1.SYX` v11",
+    "original_name": "MONO Z",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 108,
+    "preset_number": 109,
+    "name": "FINGERCYM",
+    "dexed_cart_source": "`!Instruments/Misc/DX148.SYX` v12",
+    "original_name": "FINGERCYM",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 109,
+    "preset_number": 110,
+    "name": "TIMPANI",
+    "dexed_cart_source": "`!Instruments/Misc/Dx114.syx` v23",
+    "original_name": "TIMPANI",
+    "yamaha_cartridge": "ROM3A v20 TIMPANI"
+  },
+  {
+    "slot": 110,
+    "preset_number": 111,
+    "name": "TAMBOURINE",
+    "dexed_cart_source": "`!Instruments/Misc/Dx103.syx` v23",
+    "original_name": "TAMBOURINE",
+    "yamaha_cartridge": "VRC104B v05 TAMBLN.  1"
+  },
+  {
+    "slot": 111,
+    "preset_number": 112,
+    "name": "DESCENT",
+    "dexed_cart_source": "`!Instruments/Effects/EFFECT04.SYX` v26",
+    "original_name": "DESCENT",
+    "yamaha_cartridge": "ROM2B v28 DESCENT"
+  },
+  {
+    "slot": 112,
+    "preset_number": 113,
+    "name": "CLANG BELL",
+    "dexed_cart_source": "`!Instruments/Percussion/Perc.SYX` v5",
+    "original_name": "CLANG BELL",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 113,
+    "preset_number": 114,
+    "name": "STEEL DRUM",
+    "dexed_cart_source": "`!Instruments/Percussion/PERCUS04.SYX` v5",
+    "original_name": "STEEL DRUM",
+    "yamaha_cartridge": "ROM3A v22 STEEL DRUM"
+  },
+  {
+    "slot": 114,
+    "preset_number": 115,
+    "name": "CONGA",
+    "dexed_cart_source": "`Aminet/165.syx` v27",
+    "original_name": "CONGA",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 115,
+    "preset_number": 116,
+    "name": "SAW EM UP",
+    "dexed_cart_source": "`!Instruments/Effects/Effect-1.syx` v15",
+    "original_name": "SAW EM UP",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 116,
+    "preset_number": 117,
+    "name": "BI   BEN",
+    "dexed_cart_source": "`!Instruments/Effects/EFFECT03.SYX` v1",
+    "original_name": "BIG  BEN",
+    "yamaha_cartridge": "VRC105B v18 BIG BEN"
+  },
+  {
+    "slot": 117,
+    "preset_number": 118,
+    "name": "KALIMBA",
+    "dexed_cart_source": "`!Instruments/Misc/DX149.SYX` v20",
+    "original_name": "-KALIMBA-",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 118,
+    "preset_number": 119,
+    "name": "GAMALONG",
+    "dexed_cart_source": "`!Instruments/Ethnic/Ethnic.syx` v20",
+    "original_name": "GAMALONG",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 119,
+    "preset_number": 120,
+    "name": "SAW EM UP2",
+    "dexed_cart_source": "`!Instruments/Effects/Effect-1.syx` v15",
+    "original_name": "SAW EM UP",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 120,
+    "preset_number": 121,
+    "name": "TUB BELLS",
+    "dexed_cart_source": "`!Instruments/Keyboard/Organ/Dxorgans.syx` v11",
+    "original_name": "TUB BELLS",
+    "yamaha_cartridge": "ROM1A v26 TUB BELLS"
+  },
+  {
+    "slot": 121,
+    "preset_number": 122,
+    "name": "BRUSHES",
+    "dexed_cart_source": "`!Instruments/Effects/EFFECT03.SYX` v19",
+    "original_name": "-BRUSHES-",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 122,
+    "preset_number": 123,
+    "name": "TOM TOMS",
+    "dexed_cart_source": "`!Instruments/Ethnic/Latin/LATIN.SYX` v25",
+    "original_name": "TOM TOMS",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 123,
+    "preset_number": 124,
+    "name": "SAW EM UP3",
+    "dexed_cart_source": "`!Instruments/Effects/Effect-1.syx` v15",
+    "original_name": "SAW EM UP",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 124,
+    "preset_number": 125,
+    "name": "ECHO",
+    "dexed_cart_source": "`!Instruments/Percussion/Perc.SYX` v10",
+    "original_name": "ECHO------",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 125,
+    "preset_number": 126,
+    "name": "TIMBALI",
+    "dexed_cart_source": "`!Instruments/Misc/Dx114.syx` v1",
+    "original_name": "TIMBALI 1",
+    "yamaha_cartridge": "VRC104A v16 TIMBALES 2"
+  },
+  {
+    "slot": 126,
+    "preset_number": 127,
+    "name": "PERCUSSION",
+    "dexed_cart_source": "`!Instruments/Ethnic/Latin/LATIN.SYX` v27",
+    "original_name": "PERCUSSION",
+    "yamaha_cartridge": null
+  },
+  {
+    "slot": 127,
+    "preset_number": 128,
+    "name": "WHAT IF",
+    "dexed_cart_source": "`!Instruments/Effects/Effect-1.syx` v11",
+    "original_name": "WHAT IF...",
+    "yamaha_cartridge": null
+  }
+]
