@@ -20,11 +20,17 @@
  *     slot 1 of its quarter — the FM-1 always boots into whatever's in
  *     slot 001, so Assigning something from 001-032 is how you set the
  *     boot sound from the box itself.
+ *   - A SING button toggles "sing on key" mode (see sing_mode.ino): the
+ *     box plays target notes on the FM-1, listens through a microphone
+ *     (a MAX9814 module's onboard mic), and charts how close you're singing,
+ *     with EASY/MEDIUM/EXPERT tolerances and auto-advance on a hit. Notes
+ *     come from a song (.kar/.mid) uploaded on the web page, or chromatic.
  *   - A long press (3s+) toggles WIFI MODE: the box becomes a WiFi access
  *     point serving the soundbank page (see WEB_PAGE below) where you pick
  *     DX7 .syx banks from your phone/laptop, load them into the box's
  *     128-voice bank, drag-and-drop to reorder (multi-select supported),
- *     save, and send the result to the FM-1 — no computer software needed.
+ *     save, send the result to the FM-1, and upload a song for sing mode —
+ *     no computer software needed.
  *
  * No voice data ships with this firmware. The box starts with an empty
  * bank; everything in it comes from .syx files you load yourself, so the
@@ -54,6 +60,8 @@
  *
  * Pin map (change to taste — avoid ESP32-S3 strapping pins 0/3/45/46):
  *   GPIO4  -> MIDI OUT (UART1 TX, through 220ohm to TRS tip)
+ *   GPIO1  -> Mic in (MAX9814 OUT; ADC1 — ADC2 pins don't work with WiFi on)
+ *   GPIO2  -> SING button (INPUT_PULLUP, other leg to GND)
  *   GPIO5  -> Sustain pedal/button (INPUT_PULLUP, shared node, same as v1)
  *   GPIO6  -> Encoder CLK
  *   GPIO7  -> Encoder DT
@@ -117,6 +125,7 @@
 #include <LittleFS.h>
 
 #include "web_page.h"
+#include "pitch_detector.h"
 
 // ---- Pins ----
 static const int PIN_MIDI_TX = 4;
@@ -129,6 +138,8 @@ static const int PIN_TFT_DC = 11;
 static const int PIN_TFT_RST = 12;
 static const int PIN_TFT_SCK = 13;
 static const int PIN_TFT_MOSI = 14;
+static const int PIN_MIC = 1;
+static const int PIN_SING_BTN = 2;
 
 // ---- MIDI ----
 static const uint32_t MIDI_BAUD = 31250;
@@ -137,7 +148,11 @@ HardwareSerial MidiSerial(1);
 
 // ---- Display ----
 static const int TFT_SIZE = 240;
-Adafruit_GC9A01A tft(PIN_TFT_CS, PIN_TFT_DC, PIN_TFT_MOSI, PIN_TFT_SCK, PIN_TFT_RST);
+// Hardware SPI (pins remapped in setup) — sing mode's live chart redraws
+// ~30 times a second, which software SPI is far too slow for. Lower
+// TFT_SPI_HZ if the screen shows glitches over long breadboard wires.
+static const uint32_t TFT_SPI_HZ = 40000000;
+Adafruit_GC9A01A tft(&SPI, PIN_TFT_DC, PIN_TFT_CS, PIN_TFT_RST);
 
 // Background color per FM-1 bank quarter (A/B/C/D), RGB565.
 static const uint16_t QUARTER_COLOR565[4] = {
@@ -249,7 +264,10 @@ bool encBtnDown = false;
 static const unsigned long SHORT_PRESS_MAX_MS = 400;   // < this: toggle LIVE/SILENT
 static const unsigned long WIFI_HOLD_MS = 3000;        // >= this: toggle WiFi mode
                                                          // in between: Assign
-int heldHint = 0;  // 0=none, 1="release for Assign", 2="release for WiFi" — live feedback while held
+int heldHint = 0;
+
+static const unsigned long SING_BTN_DEBOUNCE_MS = 30;
+static const unsigned long SING_BTN_HOLD_MS = 600;  // SING held this long (in sing mode) = next note list  // 0=none, 1="release for Assign", 2="release for WiFi" — live feedback while held
 
 unsigned long bannerUntil = 0;
 String bannerLine1, bannerLine2;
@@ -262,6 +280,7 @@ static uint8_t uploadBuf[BANK_BYTES];
 static size_t uploadLen = 0;
 static const char *WIFI_AP_SSID = "FM1-ControlBox";
 static const char *WIFI_AP_PASSWORD = "fm1setup1";  // 8+ chars required by softAP
+static const char *SONG_PATH_WEB = "/song.bin";     // same file sing_mode.ino's SONG_PATH reads
 String wifiStatusLine = "";
 
 void drawScreen();
@@ -286,6 +305,18 @@ void midiControlChange(uint8_t cc, uint8_t value) {
 void midiProgramChange(uint8_t program) {
   MidiSerial.write(0xC0 | MIDI_CHANNEL);
   MidiSerial.write(program & 0x7F);
+}
+
+void midiNoteOn(uint8_t note, uint8_t velocity) {
+  MidiSerial.write(0x90 | MIDI_CHANNEL);
+  MidiSerial.write(note & 0x7F);
+  MidiSerial.write(velocity & 0x7F);
+}
+
+void midiNoteOff(uint8_t note) {
+  MidiSerial.write(0x80 | MIDI_CHANNEL);
+  MidiSerial.write(note & 0x7F);
+  MidiSerial.write(0);
 }
 
 void sendSustain(bool on) {
@@ -350,7 +381,7 @@ void handleGetBank() {
   server.send_P(200, "application/octet-stream", (const char *)bankVoices, BANK_BYTES);
 }
 
-void handleBankUploadData() {
+void handleUploadData() {
   HTTPUpload &upload = server.upload();
   if (upload.status == UPLOAD_FILE_START) {
     uploadLen = 0;
@@ -396,6 +427,48 @@ void handleSend() {
   server.send(200, "text/plain", "Sent.");
 }
 
+void handleGetSong() {
+  server.sendHeader("Cache-Control", "no-store");
+  File f = fsMounted ? LittleFS.open(SONG_PATH_WEB, "r") : File();
+  if (!f) {
+    server.send(204, "application/octet-stream", "");
+    return;
+  }
+  server.streamFile(f, "application/octet-stream");
+  f.close();
+}
+
+void handleSongUploadDone() {
+  if (uploadLen == SIZE_MAX) {
+    server.send(400, "text/plain", "Song file too large.");
+    return;
+  }
+  if (uploadLen == 0) {  // empty upload = remove the song
+    if (fsMounted) LittleFS.remove(SONG_PATH_WEB);
+    loadSong();
+    wifiStatusLine = "Song removed";
+    drawScreen();
+    server.send(200, "text/plain", "Song removed.");
+    return;
+  }
+  const char *err = parseSong(uploadBuf, uploadLen);
+  if (err) {  // parseSong validates before touching anything, so the old song is intact
+    server.send(400, "text/plain", err);
+    return;
+  }
+  bool saved = false;
+  if (fsMounted) {
+    File f = LittleFS.open(SONG_PATH_WEB, "w");
+    if (f) {
+      saved = f.write(uploadBuf, uploadLen) == uploadLen;
+      f.close();
+    }
+  }
+  wifiStatusLine = "Song saved";
+  drawScreen();
+  server.send(saved ? 200 : 500, "text/plain", saved ? "Song saved to the box." : "Song loaded, but couldn't write it to flash (lost at power-off).");
+}
+
 void enterWifiMode() {
   wifiModeActive = true;
   wifiStatusLine = "";
@@ -403,8 +476,10 @@ void enterWifiMode() {
   WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASSWORD);
   server.on("/", HTTP_GET, handleRoot);
   server.on("/bank.bin", HTTP_GET, handleGetBank);
-  server.on("/bank", HTTP_POST, handleBankUploadDone, handleBankUploadData);
+  server.on("/bank", HTTP_POST, handleBankUploadDone, handleUploadData);
   server.on("/send", HTTP_POST, handleSend);
+  server.on("/song.bin", HTTP_GET, handleGetSong);
+  server.on("/song", HTTP_POST, handleSongUploadDone, handleUploadData);
   server.begin();
   drawScreen();
 }
@@ -446,13 +521,22 @@ void drawWifiScreen() {
     printCentered(145 + q * 13, line, 1, full ? GC9A01A_GREEN : GC9A01A_WHITE);
   }
 
-  if (wifiStatusLine.length()) printCentered(203, wifiStatusLine.c_str(), 1, GC9A01A_YELLOW);
+  if (wifiStatusLine.length()) {
+    printCentered(203, wifiStatusLine.c_str(), 1, GC9A01A_YELLOW);
+  } else if (songStepCount()) {
+    snprintf(line, sizeof(line), "Song: %d notes", songStepCount());
+    printCentered(203, line, 1, GC9A01A_WHITE);
+  }
   printCentered(220, "Hold knob 3s to exit", 1, GC9A01A_WHITE);
 }
 
 void drawScreen() {
   if (wifiModeActive) {
     drawWifiScreen();
+    return;
+  }
+  if (singActive()) {
+    drawSingScreen();
     return;
   }
 
@@ -487,23 +571,33 @@ void drawScreen() {
     printCentered(128, bankBuf, 2, GC9A01A_BLACK);
   }
 
-  printCentered(155, liveBrowse ? "LIVE" : "SILENT", 1, GC9A01A_BLACK);
+  printCentered(150, liveBrowse ? "REGULAR MODE  LIVE" : "REGULAR MODE  SILENT", 1, GC9A01A_BLACK);
+
+  // What's loaded: voices per bank, e.g. "A32 B32 C0 D32".
+  char loadedBuf[24];
+  int counts[4] = {0, 0, 0, 0};
+  for (int i = 0; i < 128; i++) {
+    if (!slotEmpty(i)) counts[i / 32]++;
+  }
+  snprintf(loadedBuf, sizeof(loadedBuf), "A%d B%d C%d D%d", counts[0], counts[1], counts[2], counts[3]);
+  printCentered(164, loadedBuf, 1, GC9A01A_WHITE);
+
   if (!liveBrowse) {
     char playBuf[24];
     snprintf(playBuf, sizeof(playBuf), "FM-1 playing: %03d", playingIndex + 1);
-    printCentered(172, playBuf, 1, GC9A01A_WHITE);
+    printCentered(178, playBuf, 1, GC9A01A_WHITE);
   }
 
   char sustBuf[16];
   snprintf(sustBuf, sizeof(sustBuf), "Sustain: %s", sustainOn ? "ON" : "off");
-  printCentered(190, sustBuf, 1, GC9A01A_WHITE);
+  printCentered(193, sustBuf, 1, GC9A01A_WHITE);
 
   if (encBtnDown && heldHint == 1) {
-    printCentered(212, "release: ASSIGN", 1, GC9A01A_WHITE);
+    printCentered(208, "release: ASSIGN", 1, GC9A01A_WHITE);
   } else if (encBtnDown && heldHint == 2) {
-    printCentered(212, "release: WIFI MODE", 1, GC9A01A_WHITE);
+    printCentered(208, "release: WIFI MODE", 1, GC9A01A_WHITE);
   } else {
-    printCentered(212, "tap:live hold:assign/wifi", 1, GC9A01A_WHITE);
+    printCentered(208, "tap:live hold:assign/wifi", 1, GC9A01A_WHITE);
   }
 }
 
@@ -514,10 +608,12 @@ void drawScreen() {
 void setup() {
   pinMode(PIN_SUSTAIN, INPUT_PULLUP);
   pinMode(PIN_ENC_BTN, INPUT_PULLUP);
+  pinMode(PIN_SING_BTN, INPUT_PULLUP);
 
   MidiSerial.begin(MIDI_BAUD, SERIAL_8N1, -1, PIN_MIDI_TX);
 
-  tft.begin();
+  SPI.begin(PIN_TFT_SCK, -1, PIN_TFT_MOSI, PIN_TFT_CS);
+  tft.begin(TFT_SPI_HZ);
   tft.setRotation(0);
   tft.fillScreen(GC9A01A_BLACK);
 
@@ -525,6 +621,11 @@ void setup() {
   // survive a power cycle.
   fsMounted = LittleFS.begin(true);
   loadBank();
+  loadSong();
+
+  // If the mic ADC can't start, everything else still works; sing mode
+  // just never hears anything.
+  pitchBegin(PIN_MIC);
 
   ESP32Encoder::useInternalWeakPullResistors = puType::up;
   encoder.attachHalfQuad(PIN_ENC_CLK, PIN_ENC_DT);
@@ -544,8 +645,32 @@ void loop() {
   if (pressed != sustainOn) {
     sustainOn = pressed;
     sendSustain(sustainOn);
-    if (!wifiModeActive) drawScreen();
+    if (!wifiModeActive && !singActive()) drawScreen();
   }
+
+  // --- SING button: tap toggles sing mode; hold (in sing mode) cycles SONG/DRILL/FREE ---
+  static bool singBtnDown = false;
+  static unsigned long singBtnChangedAt = 0;
+  static unsigned long singBtnPressedAt = 0;
+  bool singRaw = (digitalRead(PIN_SING_BTN) == LOW);
+  if (singRaw != singBtnDown && millis() - singBtnChangedAt >= SING_BTN_DEBOUNCE_MS) {
+    singBtnDown = singRaw;
+    singBtnChangedAt = millis();
+    if (singBtnDown) {
+      singBtnPressedAt = millis();
+    } else if (!wifiModeActive) {
+      bool held = millis() - singBtnPressedAt >= SING_BTN_HOLD_MS;
+      if (!singActive()) {
+        enterSingMode();
+      } else if (held) {
+        singCycleList();
+      } else {
+        exitSingMode();
+      }
+    }
+  }
+
+  if (singActive() && !wifiModeActive) singLoop();
 
   // --- Encoder rotation -> browse (with acceleration) + Program Change in LIVE ---
   // (Still tracked in WiFi mode so nothing's lost, but only acted on/drawn
@@ -562,7 +687,9 @@ void loop() {
     lastDetentCount = detentCount;
     lastDetentAt = now;
 
-    if (!wifiModeActive) {
+    if (singActive() && !wifiModeActive) {
+      singStep((int)deltaDetents);  // one note per detent, no acceleration
+    } else if (!wifiModeActive) {
       int newIndex = browseIndex + (int)deltaDetents * step;
       newIndex = ((newIndex % 128) + 128) % 128;  // wrap 0-127 regardless of sign
       browseIndex = newIndex;
@@ -583,7 +710,7 @@ void loop() {
   } else if (btnDown && encBtnDown) {
     unsigned long heldMs = millis() - encBtnPressedAt;
     int newHint = (heldMs >= WIFI_HOLD_MS) ? 2 : (heldMs >= SHORT_PRESS_MAX_MS) ? 1 : 0;
-    if (newHint != heldHint && !wifiModeActive) {
+    if (newHint != heldHint && !wifiModeActive && !singActive()) {
       heldHint = newHint;
       drawScreen();
     }
@@ -594,6 +721,10 @@ void loop() {
 
     if (wifiModeActive) {
       exitWifiMode();
+    } else if (singActive() && heldMs < SHORT_PRESS_MAX_MS) {
+      singReplay();
+    } else if (singActive() && heldMs < WIFI_HOLD_MS) {
+      singCycleDifficulty();
     } else if (heldMs < SHORT_PRESS_MAX_MS) {
       liveBrowse = !liveBrowse;
       if (liveBrowse) browseIndex = playingIndex;  // snap back to what's actually sounding
@@ -602,6 +733,7 @@ void loop() {
       assignPresetToSlotOne(browseIndex);
       drawScreen();
     } else {
+      if (singActive()) exitSingMode();
       enterWifiMode();
     }
   }
@@ -609,7 +741,7 @@ void loop() {
   // Keep the Assign banner visible for its duration, then fall back to the
   // normal screen automatically.
   static bool showingBanner = false;
-  bool bannerNow = (millis() < bannerUntil) && !wifiModeActive;
+  bool bannerNow = (millis() < bannerUntil) && !wifiModeActive && !singActive();
   if (bannerNow != showingBanner) {
     showingBanner = bannerNow;
     drawScreen();

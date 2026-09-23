@@ -99,7 +99,7 @@ ax1.set_aspect('equal')
 ax1.axis('off')
 
 ax1.text(0, 17.7, 'FM-1 Control Box (v2) — Schematic', fontsize=FS_TITLE, fontweight='bold', va='top')
-ax1.text(0, 17.0, 'ESP32-S3 Mini  +  TRS Pedal In  +  Built-in Button  +  TRS MIDI Out (Type A)  +  Rotary Encoder  +  1.28" Round TFT', fontsize=FS_SUB, va='top', style='italic')
+ax1.text(0, 17.0, 'ESP32-S3 Mini  +  TRS Pedal In  +  Built-in Button  +  TRS MIDI Out (Type A)  +  Rotary Encoder  +  1.28" Round TFT  +  Mic (MAX9814, onboard)  +  SING Button', fontsize=FS_SUB, va='top', style='italic')
 
 GND_Y = -6.0
 V3_Y = -7.2
@@ -130,7 +130,7 @@ pj_s = pin_right(ax1, PJ_X + PJ_W, 11.2, 0.9, 'Sleeve')
 line(ax1, pj_r[0], pj_r[1], pj_r[0], pj_s[1])
 dot(ax1, pj_r[0], pj_r[1])
 dot(ax1, pj_r[0], pj_s[1])
-line(ax1, pj_r[0], pj_s[1], pj_r[0], GND_Y)
+ground_symbol(ax1, pj_r[0], pj_s[1])
 
 # --- ESP32-S3 Mini ---
 EX, EW = 9.0, 4.4
@@ -140,6 +140,8 @@ EH = E_TOP - EY
 box(ax1, EX, EY, EW, EH, 'ESP32-S3 Mini', '"Super Mini" / ESP32-S3FH4R2')
 e_gpio5 = pin_left(ax1, EX, 13.8, 1.1, 'GPIO5')
 e_gnd_l = pin_left(ax1, EX, 4.0, 1.1, 'GND')
+e_gpio2 = pin_left(ax1, EX, 2.5, 1.1, 'GPIO2')
+e_gpio1 = pin_left(ax1, EX, -0.5, 1.1, 'GPIO1 (ADC)')
 e_gpio4 = pin_right(ax1, EX + EW, MIDI_TIP_Y, 1.1, 'GPIO4 (TX1)')
 e_3v3 = pin_right(ax1, EX + EW, MIDI_RING_Y, 1.1, '3V3')
 e_gnd_r = pin_right(ax1, EX + EW, MIDI_SLEEVE_Y, 1.1, 'GND')
@@ -151,15 +153,14 @@ e_dc = pin_right(ax1, EX + EW, TFT_DC_Y, 1.1, 'GPIO11')
 e_rst = pin_right(ax1, EX + EW, TFT_RST_Y, 1.1, 'GPIO12')
 e_sck = pin_right(ax1, EX + EW, TFT_SCK_Y, 1.1, 'GPIO13')
 e_mosi = pin_right(ax1, EX + EW, TFT_MOSI_Y, 1.1, 'GPIO14')
-ax1.text(EX + EW / 2, EY - 0.35, 'INPUT_PULLUP on GPIO5, GPIO15  •  3.3V logic throughout', ha='center', fontsize=FS_SMALL, style='italic', color='dimgray')
+ax1.text(EX + EW / 2, EY + 1.2, 'INPUT_PULLUP on\nGPIO2, GPIO5, GPIO15\n\n3.3V logic throughout', ha='center', va='center', fontsize=FS_SMALL, style='italic', color='dimgray')
 
 # Pedal Tip -> GPIO5 (straight wire, same y)
 line(ax1, pj_t[0], pj_t[1], e_gpio5[0], e_gpio5[1])
 dot(ax1, e_gpio5[0], e_gpio5[1])
 
-# ESP32 left GND -> GND bus
-line(ax1, e_gnd_l[0], e_gnd_l[1], e_gnd_l[0], GND_Y)
-dot(ax1, e_gnd_l[0], GND_Y)
+# ESP32 left GND -> local ground (keeps the lower-left free for the mic and SING button)
+ground_symbol(ax1, e_gnd_l[0], e_gnd_l[1])
 
 # --- Built-in panel pushbutton (wired in parallel with the pedal jack) ---
 BTN_X, BTN_Y, BTN_R = 3.6, 7.2, 0.32
@@ -170,8 +171,32 @@ ax1.text(BTN_X - BTN_R - 0.25, BTN_Y - 0.05, '(panel momentary, normally-open)',
 line(ax1, BTN_X, BTN_Y + 0.32, BTN_X, e_gpio5[1])
 line(ax1, BTN_X, e_gpio5[1], e_gpio5[0], e_gpio5[1])
 dot(ax1, BTN_X, e_gpio5[1])
-line(ax1, BTN_X, BTN_Y - 0.32, BTN_X, GND_Y)
-dot(ax1, BTN_X, GND_Y)
+ground_symbol(ax1, BTN_X, BTN_Y - 0.32)
+
+# --- SING button (sing-on-key mode toggle) -> GPIO2, other leg to ground ---
+SB_X, SB_R = 4.3, 0.32
+ax1.add_patch(patches.Circle((SB_X, e_gpio2[1]), SB_R, fill=False, lw=1.6))
+ax1.text(SB_X, e_gpio2[1] + SB_R + 0.2, 'SING Button', ha='center', va='bottom', fontsize=FS_LABEL, fontweight='bold')
+ax1.text(SB_X, e_gpio2[1] + SB_R + 0.75, '(sing-on-key mode, momentary)', ha='center', va='bottom', fontsize=FS_SMALL, style='italic', color='dimgray')
+line(ax1, SB_X + SB_R, e_gpio2[1], e_gpio2[0], e_gpio2[1])
+line(ax1, SB_X - SB_R, e_gpio2[1], SB_X - 0.9, e_gpio2[1])
+ground_symbol(ax1, SB_X - 0.9, e_gpio2[1])
+
+# --- Mic: MAX9814 module with its own onboard electret mic -> GPIO1 ---
+MX_X, MX_W, MX_TOP, MX_BOT = 3.2, 2.4, 0.0, -3.0
+box(ax1, MX_X, MX_BOT, MX_W, MX_TOP - MX_BOT, 'MAX9814', 'mic amp module (AGC)')
+# Onboard electret capsule, drawn as the usual mic symbol inside the module
+MIC_CX, MIC_CY, MIC_R = MX_X + 0.75, -1.5, 0.38
+ax1.add_patch(patches.Circle((MIC_CX, MIC_CY), MIC_R, fill=False, lw=1.4))
+line(ax1, MIC_CX - MIC_R, MIC_CY - MIC_R, MIC_CX - MIC_R, MIC_CY + MIC_R, lw=1.8)
+ax1.text(MIC_CX, MIC_CY - MIC_R - 0.2, 'onboard\nmic', ha='center', va='top', fontsize=FS_SMALL - 1)
+m_out = pin_right(ax1, MX_X + MX_W, -0.5, 0.9, 'OUT')
+m_vdd = pin_right(ax1, MX_X + MX_W, -1.5, 0.9, 'VDD')
+m_gnd = pin_right(ax1, MX_X + MX_W, -2.5, 0.5, 'GND')
+line(ax1, m_out[0], m_out[1], e_gpio1[0], e_gpio1[1])
+line(ax1, m_vdd[0], m_vdd[1], m_vdd[0], V3_Y)
+dot(ax1, m_vdd[0], V3_Y)
+ground_symbol(ax1, m_gnd[0], m_gnd[1])
 
 # --- MIDI OUT jack (TRS, Type A) — top-right band ---
 MJ_X, MJ_W = 21.0, 2.8
@@ -265,7 +290,10 @@ notes1 = (
     "  but confirm your specific module's spec sheet before assuming that; backlight is always-on, no PWM dimming built yet\n"
     "• Display fills with a color per FM-1 bank (A-D) so you recognize where you are while spinning through 128 presets, plus preset number/name,\n"
     "  LIVE/SILENT, sustain state, and an \"ASSIGN SENT, turn FM-1 Knob\" prompt after Assign. Hold SW 3s for WiFi mode: a phone page to load,\n"
-    "  reorder and send your own .syx banks (none are included)"
+    "  reorder and send your own .syx banks (none are included)\n"
+    "• Mic: the MAX9814 module's own onboard electret mic, facing a hole in the front panel, away from the FM-1's speaker. GAIN unconnected = 60dB max\n"
+    "  (tie GAIN to GND for 50dB if room noise registers). OUT sits at ~1.25V DC and must go to an ADC1 pin (GPIO1) -- ADC2 stops working with WiFi on\n"
+    "• SING button toggles sing-on-key mode (tap) and cycles SONG/DRILL/FREE note lists (hold 0.6s)"
 )
 line(ax1, 0.5, V3_Y - 0.8, 28.0, V3_Y - 0.8, lw=0.8)
 ax1.lines[-1].set_linestyle('dashed')
@@ -284,7 +312,7 @@ ax2.set_aspect('equal')
 ax2.axis('off')
 
 ax2.text(0, 13.1, 'FM-1 Control Box (v2) — Layout / Assembly Diagram', fontsize=FS_TITLE - 3, fontweight='bold', va='top')
-ax2.text(0, 12.45, 'Top-down view of enclosure: pedal jack + button (left panel), ESP32-S3 (center), MIDI out jack (right panel), encoder + round TFT (front panel)', fontsize=FS_SUB - 1, va='top', style='italic')
+ax2.text(0, 12.45, 'Top-down view of enclosure: pedal jack, button, SING button (left panel), mic module (behind a front-panel hole), ESP32-S3 (center), MIDI out jack (right panel), encoder + round TFT (front panel)', fontsize=FS_SUB - 1, va='top', style='italic')
 
 ENC_X, ENC_Y, ENC_W, ENC_H = 0.5, 1.0, 18.0, 10.2
 ax2.add_patch(patches.FancyBboxPatch((ENC_X, ENC_Y), ENC_W, ENC_H,
@@ -363,6 +391,31 @@ line(ax2, esp_gnd_r[0], esp_gnd_r[1], MJACK[0] - 0.35, MJACK[1] - 0.15)
 line(ax2, PERF_X + PERF_W, PERF_Y + PERF_H - 0.3, MJACK[0] - 0.35, MJACK[1] + 0.15)
 line(ax2, PERF_X + PERF_W, PERF_Y + PERF_H - 0.9, MJACK[0] - 0.35, MJACK[1])
 
+# MAX9814 mic module (onboard mic behind a front-panel hole) -> ESP32 GPIO1
+esp_gpio1 = (ESP_X, ESP_Y + 2.35)
+esp_gpio2 = (ESP_X, ESP_Y + 0.7)
+MICJ = (ENC_X + 1.3, ENC_Y + 7.6)
+MAXM_X, MAXM_Y, MAXM_W, MAXM_H = MICJ[0] - 0.4, MICJ[1] - 0.45, 1.7, 0.9
+ax2.add_patch(patches.Rectangle((MAXM_X, MAXM_Y), MAXM_W, MAXM_H, fill=True, facecolor='#f3e8ff', edgecolor='black', lw=1.2))
+ax2.text(MAXM_X + MAXM_W / 2, MAXM_Y + MAXM_H / 2, 'MAX9814', ha='center', va='center', fontsize=FS_SMALL)
+ax2.text(MAXM_X + MAXM_W / 2, MAXM_Y + MAXM_H + 0.45, 'Mic', ha='center', fontsize=FS_LABEL, fontweight='bold')
+ax2.text(MAXM_X + MAXM_W / 2, MAXM_Y + MAXM_H + 0.1, '(faces a panel hole)', ha='center', fontsize=FS_SMALL - 1, style='italic', color='dimgray')
+MIC_RUN_X = MAXM_X + MAXM_W + 0.5
+line(ax2, MAXM_X + MAXM_W, MICJ[1], MIC_RUN_X, MICJ[1])
+line(ax2, MIC_RUN_X, MICJ[1], MIC_RUN_X, esp_gpio1[1])
+line(ax2, MIC_RUN_X, esp_gpio1[1], esp_gpio1[0], esp_gpio1[1])
+
+# SING button (left panel) -> ESP32 GPIO2
+SING = (ENC_X + 3.5, ESP_Y - 0.3)
+ax2.add_patch(patches.Circle(SING, 0.35, fill=True, facecolor='#fde68a', edgecolor='black', lw=1.6))
+ax2.text(SING[0], SING[1] + 0.6, 'SING', ha='center', va='bottom', fontsize=FS_LABEL, fontweight='bold')
+line(ax2, SING[0] + 0.35, SING[1], esp_gpio2[0] - 0.9, SING[1])
+line(ax2, esp_gpio2[0] - 0.9, SING[1], esp_gpio2[0] - 0.9, esp_gpio2[1])
+line(ax2, esp_gpio2[0] - 0.9, esp_gpio2[1], esp_gpio2[0], esp_gpio2[1])
+for (px, py), name in [(esp_gpio1, 'GPIO1'), (esp_gpio2, 'GPIO2')]:
+    dot(ax2, px, py, r=0.07)
+    ax2.text(px - 0.15, py, name, ha='right', va='center', fontsize=FS_PIN - 1, bbox=dict(facecolor='white', edgecolor='none', pad=0.5))
+
 # Encoder, front panel — knob-accessible, placed above the ESP32
 ENC2_W, ENC2_H = 1.7, 1.7
 ENC2_XY = (ESP_X + ESP_W / 2 - ENC2_W / 2, ESP_Y + ESP_H + 1.4)
@@ -372,7 +425,7 @@ ax2.text(ENC2_XY[0] + ENC2_W / 2, ENC2_XY[1] + ENC2_H / 2, 'KY-040\n(knob thru\n
 line(ax2, esp_clk[0], esp_clk[1], ENC2_XY[0] - 0.6, esp_clk[1])
 line(ax2, ENC2_XY[0] - 0.6, esp_clk[1], ENC2_XY[0] - 0.6, ENC2_XY[1] + ENC2_H / 2)
 line(ax2, ENC2_XY[0] - 0.6, ENC2_XY[1] + ENC2_H / 2, ENC2_XY[0], ENC2_XY[1] + ENC2_H / 2)
-ax2.text(ENC2_XY[0] - 0.65, ENC2_XY[1] + ENC2_H / 2 + 0.2, 'CLK/DT/SW/+/GND\n(5 wires, see schematic)', ha='right', va='center', fontsize=FS_SMALL - 1, style='italic', color='dimgray')
+ax2.text(ENC2_XY[0] - 0.65, ENC2_XY[1] + ENC2_H + 0.55, 'CLK/DT/SW/+/GND\n(5 wires, see schematic)', ha='right', va='center', fontsize=FS_SMALL - 1, style='italic', color='dimgray')
 
 # Round TFT, front panel — placed to the right of the encoder, screen visible thru panel
 TFT2_D = 1.9

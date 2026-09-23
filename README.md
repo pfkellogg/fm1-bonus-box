@@ -1,6 +1,6 @@
 # FM-1 Bonus Box
 
-A small companion board for the [M-VAVE FM-1](https://www.m-vave.com/products), talking to it over its 3.5mm TRS MIDI IN. Started as a sustain-pedal-to-CC64 converter on a spare Arduino Uno R3 (**v1**, below); as of 2026-09-22 it's being rebuilt around an **ESP32-S3 Mini** (**v2**, current) to add live preset browsing, a one-button way to set the FM-1's boot sound, and standalone soundbank management over WiFi — in the same small enclosure. **No soundbanks are included in this repo** — you bring your own DX7 `.syx` files. Also includes [`fm1_soundbank_app`](fm1_soundbank_app/), a computer-side CLI for listing, reordering, and sending a 128-preset soundbank to the FM-1 over USB MIDI — useful on its own even without building the box.
+A small companion board for the [M-VAVE FM-1](https://www.m-vave.com/products), talking to it over its 3.5mm TRS MIDI IN. Started as a sustain-pedal-to-CC64 converter on a spare Arduino Uno R3 (**v1**, below); as of 2026-09-22 it's being rebuilt around an **ESP32-S3 Mini** (**v2**, current) to add live preset browsing, a one-button way to set the FM-1's boot sound, standalone soundbank management over WiFi, and a "sing on key" mode for learning to sing in tune — in the same small enclosure. **No soundbanks are included in this repo** — you bring your own DX7 `.syx` files. Also includes [`fm1_soundbank_app`](fm1_soundbank_app/), a computer-side CLI for listing, reordering, and sending a 128-preset soundbank to the FM-1 over USB MIDI — useful on its own even without building the box.
 
 ## v2 — ESP32-S3 Control Box (current)
 
@@ -8,11 +8,12 @@ Same sustain-pedal/button job as v1, plus:
 
 - A rotary encoder (KY-040, with a built-in pushbutton) browses the FM-1's 128 presets, with **velocity-based acceleration** — spin fast to cover ground, slow down for single-step precision (see the `ACCEL_TABLE` in the sketch). In LIVE mode every step sends a MIDI Program Change, so you hear the change live — same as turning the FM-1's own PRESETS knob.
 - **Tap the encoder to toggle LIVE / SILENT.** SILENT stops sending Program Changes, so you can browse for an Assign target mid-performance without the FM-1's sound changing; the screen shows which preset is still playing. Going back to LIVE snaps to that playing preset.
-- A 1.28" round GC9A01 color TFT (240x240, SPI) shows the browsed preset number and name, which bank (A-D) it's in (the background color changes per bank), LIVE/SILENT, and sustain state.
+- A 1.28" round GC9A01 color TFT (240x240, SPI) shows the browsed preset number and name, which bank (A-D) it's in (the background color changes per bank), how many voices are loaded per bank, REGULAR mode + LIVE/SILENT, and sustain state.
+- **A SING button toggles "sing on key" mode** — see [Sing on key mode](#sing-on-key-mode) below. A microphone (the MAX9814 mic module's own onboard mic, behind a hole in the front panel) feeds a pitch detector; the box plays a target note on the FM-1, then charts how close your voice is.
 - **A medium press (release between 400ms-3s) "Assigns"** the browsed preset to slot 1 of its bank. The FM-1 always powers on at whatever's in slot 001 (there's no separate boot-preset preference — confirmed by checking the manual's Global settings end to end and by testing directly on the device), so Assigning something from bank A is how you set the boot sound from the box itself.
 - **A long press (3s+) opens WiFi mode**: the box becomes its own WiFi access point serving a soundbank page, where you find `.syx` files on your phone/laptop, load them into the box, drag-and-drop to reorder (multi-select supported), save, and send the result to the FM-1. No computer software needed after the box itself is flashed.
 
-**Compiles clean** against `esp32:esp32:esp32s3` (77% flash / 24% RAM) as of 2026-09-23. **Not yet built or bench-tested** — no physical board yet. The web page was exercised in a desktop browser against a stand-in for the box's API (find/load/multi-select drag/save/send all worked); it hasn't run on the ESP32 or a phone yet. **Requires a partition scheme with LittleFS/SPIFFS** (Tools > Partition Scheme, e.g. "Default 4MB with spiffs") for the box's bank to survive a power cycle.
+**Compiles clean** against `esp32:esp32:esp32s3` (79% flash / 32% RAM) as of 2026-09-23. **Not yet built or bench-tested** — no physical board yet. The web page was exercised in a desktop browser against a stand-in for the box's API (bank find/load/multi-select drag/save/send, song upload, DOO insert all worked); it hasn't run on the ESP32 or a phone yet. The pitch detector's algorithm was checked on the host against synthetic voices (134/135 test tones within 3 cents, 82-1047 Hz), not yet against a real mic. **Requires a partition scheme with LittleFS/SPIFFS** (Tools > Partition Scheme, e.g. "Default 4MB with spiffs") for the box's bank to survive a power cycle.
 
 ### Bring your own soundbanks
 
@@ -29,6 +30,9 @@ Same sustain-pedal/button job as v1, plus:
 | Medium press, release 400ms-3s | Assign browsed preset to slot 1 of its bank |
 | Long press, release ≥ 3s | Toggle WiFi mode on/off |
 | Pedal / built-in button | Sustain (CC64) |
+| SING button, tap | Enter / leave sing mode |
+
+In sing mode the controls change — see below.
 
 The screen shows a live hint ("release: ASSIGN" / "release: WIFI MODE") once you've held past each threshold, so you don't have to count seconds.
 
@@ -42,7 +46,49 @@ The screen shows a live hint ("release: ASSIGN" / "release: WIFI MODE") once you
 6. **Save to box** stores the bank in the ESP32's flash (LittleFS). **Send to FM-1…** saves if needed, then sends each *complete* bank (all 32 slots filled) one at a time, telling you which FM-1 knob to turn to confirm each one before you press Next. Banks with empty slots are skipped.
 7. Hold the encoder 3+ seconds again to close WiFi mode.
 
+The same page also has a **Song to sing** section (top of the page) and a **Put DOO voice in selected slot** button (Arrange) — both for sing mode, below.
+
 The bank survives power cycles and reflashing the sketch (reflashing the filesystem partition itself would wipe it; ordinary sketch uploads won't). All `.syx` parsing and reordering happens in the browser; the box just stores the 16KB result (`GET /bank.bin`, `POST /bank`) and sends banks over MIDI (`POST /send?q=0-3`).
+
+### Sing on key mode
+
+For learning to sing in tune. Tap SING: the box switches the FM-1 to a vocal "doo" voice, plays the target note for 1 second, stops, and listens. Sing the note; the live chart shows how many cents sharp or flat you are. Hold it inside the tolerance band long enough and you get **HIT!**, then it auto-advances to the next note and plays it.
+
+**The reference note stops before you sing** on purpose — otherwise the mic hears the FM-1's own speaker and "hits" every note for you. While the reference is playing, the chart plots what the mic hears in gray, so you can see what the target looks like.
+
+**Screen** (round TFT): top — note list, position, difficulty; the **target note** (name + octave) with its **frequency** and, for a song, the lyric; middle — the **pitch chart** (last ~3 seconds, green inside the tolerance band, orange near, red far; center line = on key); bottom — the **note you're singing** (name + octave), cents off, your **frequency**, a hold-progress bar, and which FM-1 voice is the reference.
+
+**Note lists** (hold SING 0.6s to cycle):
+- **SONG** — the uploaded song's melody in order (repeated same-pitch notes merged into one step, lyrics shown). Stops at "SONG DONE" after the last note.
+- **DRILL** — every distinct pitch in the song once, low to high, for practicing the hard ones.
+- **FREE** — chromatic C2-C6, available with no song loaded.
+
+**Difficulty** (medium-press the knob to cycle):
+
+| | Tolerance | Hold | Octave |
+|---|---|---|---|
+| EASY | ±50 cents | 0.3s | any octave counts |
+| MEDIUM | ±25 cents | 0.5s | any octave counts |
+| EXPERT | ±10 cents | 0.8s | must be the exact octave |
+
+"Any octave counts" lets a low voice practice a high melody (or vice versa) — the screen still shows the octave you actually sang. You can also transpose a song when uploading it.
+
+**Controls in sing mode:**
+
+| Action | Result |
+|---|---|
+| Turn encoder | Previous / next note in the list (plays it) |
+| Tap encoder | Replay the reference note |
+| Medium-press encoder | Cycle EASY → MEDIUM → EXPERT |
+| Long-press encoder (3s) | WiFi mode (leaves sing mode) |
+| Tap SING | Leave sing mode (FM-1 goes back to the preset you were on) |
+| Hold SING 0.6s | Cycle SONG → DRILL → FREE |
+
+**Uploading a song:** on the WiFi page, **Upload song (.kar / .mid)…**. The page reads the file, lists every part (track + channel, drums excluded), and preselects the melody — for `.kar` files, the part whose notes line up with the lyrics; otherwise the busiest one-note-at-a-time part in singing range. Pick another part if the guess is wrong, transpose ±12 semitones if needed, check the preview (note count, range, first notes with lyrics), and **Send song to box**. Up to 1000 notes; lyrics are kept (11 characters per note). The box stores one song; **Remove song from box** clears it.
+
+**The "doo" reference voice:** the box searches its own bank by voice name — `DOO` first, then `OOH`, `VOX`, `VOICE`, `CHOIR`, `AAH`, `HUM`, `SING` — and uses the first match (or just the current preset if none). For a guaranteed vocal sound, select a slot on the WiFi page and press **Put DOO voice in selected slot**: it inserts this project's own `DOO VOICE` patch (written from scratch for this project, CC0 — see `tools/doo_voice.py`). **Then Save and Send that bank** — the box can only program-change to a voice the FM-1 actually has. The patch hasn't been auditioned by ear yet; tweak `tools/doo_voice.py` if it doesn't sound right.
+
+**Mic:** the MAX9814 module's own onboard mic, facing out through a hole in the front panel — sing toward the box from a foot or two away. There's no mic jack; the module's automatic gain control makes up for the distance. If room noise registers as singing, first tie the module's `GAIN` pin to GND (50dB max gain instead of 60dB), then raise `GATE_RMS` in `pitch_detector.cpp` (lower it if quiet singing isn't detected). If detection is still unreliable, a close-up external mic (headset/lavalier on a 3.5mm jack wired to the capsule's pads) is the upgrade path. Other tuning knobs: `REF_MS` / `REF_TAIL_MS` in `sing_mode.ino` (how long the reference plays and how long the mic is ignored afterward — raise the tail if the FM-1's release still triggers hits).
 
 ### Schematic and layout
 
@@ -65,9 +111,11 @@ Both work from the box's own stored bank — never a read-modify-write of the re
 - ESP32-S3 Mini ("Super Mini", ESP32-S3FH4R2 — 3.3V logic, unlike the Uno's 5V)
 - [WayinTop 360-degree rotary encoder module](https://www.amazon.com/dp/B07T3672VK) (KY-040, 5-pin breakout)
 - [1.28" round GC9A01 color TFT](https://www.amazon.com/dp/B0C1G92F2B) (e.g. D-FLIFE, 240x240, 4-wire SPI) — same part + library already proven in this project's [fm1-midi-voice-tuner](https://github.com/pfkellogg/fm1-midi-voice-tuner)
-- 1/8" (3.5mm) TRS panel-mount jack, wired to the sustain pedal (reused from v1)
+- 1/8" (3.5mm) TRS panel-mount jack, wired to the sustain pedal (reused from v1) — most sustain pedals have a 1/4" plug, so you'll need a 1/4"-to-1/8" adapter
 - 1/8" (3.5mm) TRS panel-mount jack, for MIDI out (reused from v1)
 - Momentary panel pushbutton (normally-open SPST), for sustain with no pedal plugged in (reused from v1)
+- Second momentary panel pushbutton, for SING mode
+- MAX9814 electret mic amplifier module with its onboard mic (auto gain control; e.g. Adafruit #1713 or the common clones)
 - 2x 220ohm resistors (MIDI out circuit)
 - 3.5mm TRS-to-TRS cable, to reach the FM-1's MIDI IN
 
@@ -79,6 +127,8 @@ Pin map (avoid ESP32-S3's strapping pins 0/3/45/46):
 
 | Pin | Function |
 |---|---|
+| GPIO1 | Mic in (MAX9814 `OUT`) — must be an ADC1 pin; ADC2 pins don't work while WiFi is on |
+| GPIO2 | SING button (`INPUT_PULLUP`, other leg to GND) |
 | GPIO4 | MIDI OUT (UART1 TX, through 220ohm to TRS tip) |
 | GPIO5 | Sustain pedal/button (`INPUT_PULLUP`) — same node design as v1 |
 | GPIO6 | Encoder CLK |
@@ -102,6 +152,10 @@ v1 drove this from 5V; at 3.3V the opto in the FM-1's MIDI IN gets less drive cu
 
 **Sustain pedal/button:** identical wiring to v1's D2 node (see below), just on GPIO5 instead.
 
+**SING button:** one leg to GPIO2, the other to GND.
+
+**Mic (MAX9814 module, onboard mic):** module `VDD` to 3V3, `GND` to GND, `OUT` to GPIO1; leave `GAIN` and `A/R` unconnected (defaults: 60dB max gain, AGC on; tie `GAIN` to GND for 50dB if the room is noisy). Mount the module so its mic capsule faces a hole in the front panel (a few mm is enough), toward where you'll sit, and away from the FM-1's speaker; a bit of foam around the capsule keeps it from picking up knob/button clicks through the case. `OUT` idles at ~1.25V with up to ~2Vpp swing, inside the ADC's 0-3.1V range at 12dB attenuation, so no level shifting is needed. **Not bench-tested yet.**
+
 **Encoder:** [WayinTop 360-degree rotary encoder module](https://www.amazon.com/dp/B07T3672VK) (KY-040 — 5-pin breakout, onboard pull-ups, 20 detents/revolution). `+` to 3V3, `GND` to GND, `CLK`/`DT`/`SW` to GPIO6/7/15.
 
 **Round TFT (1.28" GC9A01, SPI):** [D-FLIFE or similar](https://www.amazon.com/dp/B0C1G92F2B) — `CS`/`DC`/`RES`/`SCL`/`SDA` to GPIO10/11/12/13/14, `VCC` and `BLK` both to 3V3, `GND` to GND. Listed "Driving voltage: 3-5V" on the linked module, so wiring straight to 3V3 is safe without a level shifter — **confirm your specific module's spec sheet matches** before assuming that; some bare GC9A01 panels floating around are 3.3V-only or need a level shifter, per the same caution already noted in fm1-midi-voice-tuner's README.
@@ -116,7 +170,9 @@ v1 drove this from 5V; at 3.3V the opto in the FM-1's MIDI IN gets less drive cu
 
 **Encoder acceleration is likewise untuned** — the `ACCEL_TABLE` thresholds (80/150/300ms between steps → 8/4/2/1 presets per step) are a starting guess, not bench-measured. Adjust to taste once you can actually feel how fast a real spin registers.
 
-`web_page.h` holds the WiFi-mode page (HTML/CSS/JS in one PROGMEM string).
+`web_page.h` holds the WiFi-mode page (HTML/CSS/JS in one PROGMEM string). `sing_mode.ino` is sing on key mode (note lists, scoring, the sing screen). `pitch_detector.cpp/.h` samples the mic at 16 kHz with the ESP32-S3's continuous (DMA) ADC and runs the YIN pitch algorithm on core 0, so the display/MIDI loop on core 1 never waits on it; it measures the ADC's real sample rate and uses that, since the S3's continuous ADC can drift from the configured rate.
+
+**The TFT now runs on hardware SPI** (`TFT_SPI_HZ`, 40 MHz) — sing mode redraws its chart ~30 times a second, which the previous software SPI couldn't keep up with. If the screen shows garbage over long breadboard wires, lower `TFT_SPI_HZ`.
 
 **WiFi mode is untested on real hardware.** The page's logic (file parsing, load, multi-select drag, save, send sequence) was checked in desktop Chrome against a Python stand-in for the box's three endpoints, but not yet on the ESP32's `WebServer` (in particular the 16KB multipart upload) or on a phone's touch drag. Test with banks you have other copies of first.
 
@@ -186,20 +242,24 @@ Two independent polarity unknowns here, each with a one-line fix — don't chase
 
 A pitch-strip input (linear softpot) was planned for v1 but never got past "part not sourced" before the ESP32-S3 rebuild started — dropped rather than ported to v2 for now; revisit if wanted later.
 
-An OLED display, a mode switch (to flip the OLED between sustain status and a live pitch readout), and an audio-input pitch detector (reading the FM-1's own headphone output) all previously lived on an earlier version of this board. All three were removed 2026-08-09 — the OLED moved permanently to a separate project, [fm1-midi-voice-tuner](https://github.com/pfkellogg/fm1-midi-voice-tuner), which reads the FM-1's MIDI output instead of its audio output. See git history on this repo if the mode switch or audio pitch detector are ever needed again. (v2's round TFT, above, is a new, unrelated addition built for preset browsing, not a return of this one.)
+An OLED display, a mode switch (to flip the OLED between sustain status and a live pitch readout), and an audio-input pitch detector (reading the FM-1's own headphone output) all previously lived on an earlier version of this board. All three were removed 2026-08-09 — the OLED moved permanently to a separate project, [fm1-midi-voice-tuner](https://github.com/pfkellogg/fm1-midi-voice-tuner), which reads the FM-1's MIDI output instead of its audio output. See git history on this repo if the mode switch or audio pitch detector are ever needed again. (v2's round TFT, above, is a new, unrelated addition built for preset browsing, not a return of this one. v2's sing mode does bring back audio-input pitch detection, but from a microphone — your voice — not the FM-1's output.)
 
 ## Files
 
 ```
 fm1_control_box/                       v2 — ESP32-S3 firmware
   fm1_control_box.ino
-  web_page.h                           the WiFi-mode soundbank page
+  web_page.h                           the WiFi-mode soundbank + song page
+  sing_mode.ino                        sing on key mode
+  pitch_detector.cpp / .h              mic sampling + YIN pitch detection (core 0)
 fm1_sustain_footswitch.ino             v1 — Arduino Uno firmware
 fm1_soundbank_app/                     computer-side CLI: list/reorder/send a soundbank over USB MIDI
   fm1_soundbank.py
   README.md                            its own docs — boot-patch findings, usage
   banks/                               (gitignored) your 4 .syx files go here
   reference/presets_provenance.json    where each FM-1 factory voice came from (names/sources only, no voice data)
+tools/
+  doo_voice.py                         the project's own DOO VOICE patch (CC0), sing mode's reference sound
 schematics/
   generate_fm1_control_box_schematic.py / fm1_control_box_*.{pdf,png,svg}   v2 diagrams
   generate_fm1_footswitch_schematic.py / fm1_footswitch_*.{pdf,png,svg}     v1 diagrams
