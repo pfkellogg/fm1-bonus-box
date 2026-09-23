@@ -1,61 +1,48 @@
 # FM-1 Bonus Box
 
-A small companion board for the [M-VAVE FM-1](https://www.m-vave.com/products), talking to it over its 3.5mm TRS MIDI IN. Started as a sustain-pedal-to-CC64 converter on a spare Arduino Uno R3 (**v1**, below); as of 2026-09-22 it's being rebuilt around an **ESP32-S3 Mini** (**v2**, current) to add live preset browsing, a one-button way to set the FM-1's boot sound, and standalone soundbank management over WiFi — in the same small enclosure. Also includes [`fm1_soundbank_app`](fm1_soundbank_app/), a computer-side CLI for listing, reordering, and restoring the FM-1's 128-preset soundbank over USB MIDI — useful on its own even without building the box.
+A small companion board for the [M-VAVE FM-1](https://www.m-vave.com/products), talking to it over its 3.5mm TRS MIDI IN. Started as a sustain-pedal-to-CC64 converter on a spare Arduino Uno R3 (**v1**, below); as of 2026-09-22 it's being rebuilt around an **ESP32-S3 Mini** (**v2**, current) to add live preset browsing, a one-button way to set the FM-1's boot sound, and standalone soundbank management over WiFi — in the same small enclosure. **No soundbanks are included in this repo** — you bring your own DX7 `.syx` files. Also includes [`fm1_soundbank_app`](fm1_soundbank_app/), a computer-side CLI for listing, reordering, and sending a 128-preset soundbank to the FM-1 over USB MIDI — useful on its own even without building the box.
 
 ## v2 — ESP32-S3 Control Box (current)
 
 Same sustain-pedal/button job as v1, plus:
 
-- A rotary encoder (KY-040, with a built-in pushbutton) browses the FM-1's 128 presets, with **velocity-based acceleration** — spin fast to cover ground, slow down for single-step precision (see the `ACCEL_TABLE` in the sketch). Every step sends a MIDI Program Change, so you hear the change live — same as turning the FM-1's own PRESETS knob.
-- A 1.28" round GC9A01 color TFT (240x240, SPI) shows the browsed preset, **color-coded by category** (piano/organ/synth lead/pad, guitar/bass, brass/woodwind/string/voice, percussion — see "Categories" below) so you recognize where you are in the list at a glance while spinning through it, not just by reading text — plus preset number/name, category name, active bank source, and sustain state.
-- **Two bank sources, switchable from the box**: FACTORY (the recovered-factory set embedded in flash) and CUSTOM (your own set, stored in the ESP32's own filesystem — see "Different FM-1 units, different soundbanks" below for why this exists). Short-press the encoder to toggle between them.
-- **A medium press (release between 400ms-3s) "Assigns"** the currently browsed preset — from whichever source is active — to slot 001. The FM-1 always powers on at whatever's in slot 001 (there's no separate boot-preset preference — confirmed by checking the manual's Global settings end to end and by testing directly on the device), so this is how you set the boot sound from the box itself, no computer needed.
-- **A long press (3s+) opens WiFi Upload Mode**: the box becomes its own WiFi access point serving a small upload page, so you can push a new CUSTOM bank in from any phone or laptop browser — no MIDI cable, no [`fm1_soundbank_app`](fm1_soundbank_app/) computer tool, no computer running special software, ever, after the box itself is flashed.
+- A rotary encoder (KY-040, with a built-in pushbutton) browses the FM-1's 128 presets, with **velocity-based acceleration** — spin fast to cover ground, slow down for single-step precision (see the `ACCEL_TABLE` in the sketch). In LIVE mode every step sends a MIDI Program Change, so you hear the change live — same as turning the FM-1's own PRESETS knob.
+- **Tap the encoder to toggle LIVE / SILENT.** SILENT stops sending Program Changes, so you can browse for an Assign target mid-performance without the FM-1's sound changing; the screen shows which preset is still playing. Going back to LIVE snaps to that playing preset.
+- A 1.28" round GC9A01 color TFT (240x240, SPI) shows the browsed preset number and name, which bank (A-D) it's in (the background color changes per bank), LIVE/SILENT, and sustain state.
+- **A medium press (release between 400ms-3s) "Assigns"** the browsed preset to slot 1 of its bank. The FM-1 always powers on at whatever's in slot 001 (there's no separate boot-preset preference — confirmed by checking the manual's Global settings end to end and by testing directly on the device), so Assigning something from bank A is how you set the boot sound from the box itself.
+- **A long press (3s+) opens WiFi mode**: the box becomes its own WiFi access point serving a soundbank page, where you find `.syx` files on your phone/laptop, load them into the box, drag-and-drop to reorder (multi-select supported), save, and send the result to the FM-1. No computer software needed after the box itself is flashed.
 
-**Compiles clean** against `esp32:esp32:esp32s3` (77% flash / 22% RAM — the WiFi stack is most of that jump) as of 2026-09-22. **Not yet built or bench-tested** — no physical board yet, same caveat as any new circuit in this project. **Requires a partition scheme with LittleFS/SPIFFS** (Tools > Partition Scheme, e.g. "Default 4MB with spiffs") for CUSTOM bank storage to work.
+**Compiles clean** against `esp32:esp32:esp32s3` (77% flash / 24% RAM) as of 2026-09-23. **Not yet built or bench-tested** — no physical board yet. The web page was exercised in a desktop browser against a stand-in for the box's API (find/load/multi-select drag/save/send all worked); it hasn't run on the ESP32 or a phone yet. **Requires a partition scheme with LittleFS/SPIFFS** (Tools > Partition Scheme, e.g. "Default 4MB with spiffs") for the box's bank to survive a power cycle.
 
-### Different FM-1 units, different soundbanks
+### Bring your own soundbanks
 
-Worth understanding before relying on any of this: **FM-1 units in the wild don't all have the same 128 factory voices.** The embedded FACTORY set here is one specific snapshot — [recovered by KingParamount](https://github.com/KingParamount/fm1-factory-presets) from one unit's restore data — and different units, firmware versions, or prior imports can leave a given FM-1 with different content. This was confirmed directly on this project's own unit: it booted with BRASS at slot 1, not the FACTORY set's PIANO 1, before any of this tooling touched it.
+**No voice data ships with this repo or the firmware.** The FM-1's own factory set, Yamaha's ROM/VRC cartridges, and commercial banks aren't openly licensed, so none are included; `.syx` files are gitignored. The box starts with an empty bank and holds only what you load into it. Good sources are listed on the box's page ("Where to get banks"); for the FM-1's own factory set see [KingParamount/fm1-factory-presets](https://github.com/KingParamount/fm1-factory-presets).
 
-**The FM-1 can't be asked what it currently has loaded.** It only receives SysEx voice data over MIDI — it never transmits its own voices back, to this box, to a computer, or to anything else. That's not a software limitation to work around; it's how the hardware/firmware is built (same reason KingParamount had to intercept M-VAVE's own restore-tool traffic to recover the FACTORY set at all, rather than just asking the device). So if your FM-1's current soundbank is better than FACTORY, **this box cannot extract it from the device** — nothing can, over MIDI.
-
-What it *can* do: hold a second full soundbank (CUSTOM) in its own storage, and push either source to the FM-1 on demand. Getting your preferred voices into CUSTOM means having them as standard DX7 bank `.syx` files from wherever they originally came from — Dexed, a SysEx librarian, a backup taken before an import, etc. — and uploading those via WiFi Upload Mode (below). If you don't already have `.syx` backups of whatever's better about your unit's current set, there unfortunately isn't a way to generate them after the fact; back up voices you care about *before* overwriting them, the same caution that applies to using [`fm1_soundbank_app`](fm1_soundbank_app/) from a computer.
+**The FM-1 can't be asked what it currently has loaded.** It only receives SysEx voice data over MIDI — it never transmits its own voices back, to this box, to a computer, or to anything else. That's how the hardware/firmware is built, not a software limitation. So the box keeps its own copy of the bank (what you've loaded and arranged), and Assign/Send push from that copy. If you care about what's on your FM-1 right now, make sure you have it as `.syx` files *before* sending anything over it — there's no way to pull it back off the device afterward. (Different units don't all have the same content either: this project's own unit booted with BRASS at slot 1, not the recovered factory set's PIANO 1.)
 
 ### Controls
 
 | Action | Result |
 |---|---|
-| Turn encoder | Browse presets (accelerates with speed), live MIDI Program Change |
-| Short press, release < 400ms | Toggle bank source: FACTORY ↔ CUSTOM |
-| Medium press, release 400ms-3s | Assign browsed preset to slot 001 (active source) |
-| Long press, release ≥ 3s | Toggle WiFi Upload Mode on/off |
+| Turn encoder | Browse presets (accelerates with speed); in LIVE mode also sends a MIDI Program Change |
+| Tap, release < 400ms | Toggle LIVE ↔ SILENT browse. SILENT = browse/Assign without changing the FM-1's sound; screen shows what's still playing. Back to LIVE snaps to the playing preset |
+| Medium press, release 400ms-3s | Assign browsed preset to slot 1 of its bank |
+| Long press, release ≥ 3s | Toggle WiFi mode on/off |
 | Pedal / built-in button | Sustain (CC64) |
 
-The screen shows a live hint ("release: ASSIGN" / "release: WIFI UPLOAD") once you've held past each threshold, so you don't have to count seconds.
+The screen shows a live hint ("release: ASSIGN" / "release: WIFI MODE") once you've held past each threshold, so you don't have to count seconds.
 
-### Loading a CUSTOM bank over WiFi
+### The soundbank page (WiFi mode)
 
-1. Hold the encoder button 3+ seconds. The box becomes a WiFi access point: SSID `FM1-ControlBox`, password `fm1setup1` (change both in the sketch before relying on this outside a trusted room — this is an open, unencrypted-beyond-WPA2-PSK local AP, not meant to be internet-facing).
-2. Connect a phone or laptop to that network, browse to `http://192.168.4.1`.
-3. Pick which quarter (Bank A/B/C/D, matching presets 001-032/033-064/065-096/097-128) and choose a `.syx` file — a standard 4104-byte DX7 32-voice bank dump, the same format [`fm1_soundbank_app`](fm1_soundbank_app/)'s `export` produces and any SysEx librarian (Dexed, PocketMIDI, SysEx Librarian...) can save. Upload.
-4. Repeat for any other quarters you want to set. Unset quarters keep whatever they already had (a fresh CUSTOM bank starts as a full copy of FACTORY, so it's always fully playable even if you only ever upload one quarter).
-5. Hold the encoder 3+ seconds again to close WiFi mode. Short-press to switch to CUSTOM if it wasn't already active, then browse/Assign as usual.
+1. Hold the encoder button 3+ seconds. The box becomes a WiFi access point: SSID `FM1-ControlBox`, password `fm1setup1` (change both in the sketch before relying on this outside a trusted room — it's a local WPA2 access point, not meant to be internet-facing).
+2. Connect a phone or laptop to that network, browse to `http://192.168.4.1`. The page shows the box's current 128-slot bank.
+3. **Find sound banks…** opens the device's file picker (pick several at once). Each standard DX7 32-voice bulk dump found in the files is listed with its voice names; files that aren't one are rejected. The box's network has no internet, so download banks beforehand.
+4. **Load sound bank**: pick one of the found banks and a target (Bank A/B/C/D = presets 001-032/033-064/065-096/097-128). Replacing a bank that already has voices asks for a second press.
+5. **Arrange**: tap voices to select several (shift-click for a range on a computer), then drag any selected one by its ≡ handle — they move together, keeping their order, anywhere across all 128 slots (the page auto-scrolls near the edges). "Empty selected slots" clears slots.
+6. **Save to box** stores the bank in the ESP32's flash (LittleFS). **Send to FM-1…** saves if needed, then sends each *complete* bank (all 32 slots filled) one at a time, telling you which FM-1 knob to turn to confirm each one before you press Next. Banks with empty slots are skipped.
+7. Hold the encoder 3+ seconds again to close WiFi mode.
 
-CUSTOM is saved to the ESP32's flash (LittleFS), so it survives power cycles and reflashing the sketch (reflashing the filesystem partition itself would wipe it, ordinary sketch uploads won't).
-
-### Categories
-
-The FM-1's factory 128 aren't a flat list — they're 4 categories interleaved within each 32-preset bank (confirmed against the actual factory names in `reference/presets_provenance.json`, below):
-
-| Bank | Slots | Categories (8 each, interleaved) |
-|---|---|---|
-| A | 001-032 | PIANO, ORGAN, SYN LEAD, SYN PAD |
-| B | 033-064 | GUITAR, DS GUITAR, BASS, SYN BASS |
-| C | 065-096 | BRASS, WOODWIND, STRING, VOICE |
-| D | 097-128 | Percussion & effects (bucketed as one PERC/FX category — not a 4-way split like A-C) |
-
-`tools/generate_soundbank_header.py` derives each slot's category from its position (not stored per-voice) and bakes in a distinct color per category (`CATEGORY_COLOR565`) that the TFT fills the background with.
+The bank survives power cycles and reflashing the sketch (reflashing the filesystem partition itself would wipe it; ordinary sketch uploads won't). All `.syx` parsing and reordering happens in the browser; the box just stores the 16KB result (`GET /bank.bin`, `POST /bank`) and sends banks over MIDI (`POST /send?q=0-3`).
 
 ### Schematic and layout
 
@@ -65,13 +52,13 @@ The FM-1's factory 128 aren't a flat list — they're 4 categories interleaved w
 
 PDFs (linked above) are the high-res versions. `schematics/generate_fm1_control_box_schematic.py` regenerates both from source (matplotlib; `pip install matplotlib` first).
 
-### What "Assign" actually does, and its real limits
+### What "Assign" and "Send" actually do, and their real limits
 
-Per "Different FM-1 units, different soundbanks" above: the FM-1 never sends its voice data back over MIDI, so this box has no way to know what's actually loaded in the FM-1's memory right now. Assign works from its own local copy of a soundbank — FACTORY (`fm1_control_box/fm1_soundbank_data.h`, embedded in flash) or CUSTOM (`/custom_voices.bin`, in the ESP32's filesystem, loaded via WiFi Upload Mode), whichever is currently active — never a read-modify-write of the real device state.
+Both work from the box's own stored bank — never a read-modify-write of the real device, which can't be read (see "Bring your own soundbanks").
 
-Concretely:
-- A DX7 bank dump is always 32 voices, so Assign rewrites **all 32 presets** in whichever quarter the target falls in (001-032, 033-064, 065-096, or 097-128) — with your chosen preset moved into slot 1 of that quarter. Anything currently sitting anywhere else in that same 32-preset range on the real FM-1 gets overwritten back to whatever the active source has for that quarter. This is exactly what was done by hand from the computer on 2026-09-22 (moving a piano to slot 001, using FACTORY) — the box just automates that same action, now for either source.
-- After Assign sends the SysEx, **the FM-1 still shows its own A/B/C/D bank-slot picker** on its screen and needs a physical knob turn on the FM-1 itself (Knob 1 for slot A, matching presets 001-032) to commit. The box prompts on the TFT but can't press that knob for you — confirmed this step is required, not optional, when doing this from a computer earlier the same day.
+- A DX7 bank dump is always 32 voices, so both rewrite **all 32 presets** in a bank (001-032, 033-064, 065-096, or 097-128). Assign moves your chosen preset to slot 1 of its bank (the ones before it shift down one), saves that change to the box's own bank so it keeps matching the FM-1, and sends the bank. Anything on the real FM-1 in that range gets overwritten with the box's copy.
+- Neither will send a bank that still has empty slots.
+- After each dump **the FM-1 shows its own A/B/C/D bank-slot picker** and needs a physical knob turn on the FM-1 itself (Knob 1 for A, 2 for B, …) to commit. The box/page prompts you but can't press that knob — confirmed this step is required when doing it from a computer.
 
 ### Parts
 
@@ -123,15 +110,15 @@ v1 drove this from 5V; at 3.3V the opto in the FM-1's MIDI IN gets less drive cu
 
 ### Firmware
 
-`fm1_control_box/fm1_control_box.ino`. Libraries (Library Manager): `Adafruit GC9A01A` + `Adafruit GFX Library` + `Adafruit BusIO`, `ESP32Encoder` (madhephaestus). `WiFi`, `WebServer`, and `LittleFS` are part of the `esp32` core itself, nothing extra to install. Board: `esp32` core (Espressif), profile `ESP32S3 Dev Module` (`esp32:esp32:esp32s3`) unless your specific Super Mini clone publishes its own board profile — **and a Partition Scheme that includes LittleFS/SPIFFS** (Tools menu), or CUSTOM bank storage silently falls back to RAM-only (works until power-off, then reverts to a copy of FACTORY).
+`fm1_control_box/fm1_control_box.ino`. Libraries (Library Manager): `Adafruit GC9A01A` + `Adafruit GFX Library` + `Adafruit BusIO`, `ESP32Encoder` (madhephaestus). `WiFi`, `WebServer`, and `LittleFS` are part of the `esp32` core itself, nothing extra to install. Board: `esp32` core (Espressif), profile `ESP32S3 Dev Module` (`esp32:esp32:esp32s3`) unless your specific Super Mini clone publishes its own board profile — **and a Partition Scheme that includes LittleFS/SPIFFS** (Tools menu), or the box's bank silently falls back to RAM-only (works until power-off, then starts empty again).
 
 **Encoder scaling is untuned** — `STEPS_PER_DETENT` in the sketch is set to 1, but KY-040/EC11 modules commonly report 2 raw quadrature counts per physical detent with `attachHalfQuad()` depending on the exact module/library version. First thing to check on the bench: turn the knob exactly one detent (slowly, well outside the acceleration thresholds) and confirm the display's preset number moved by exactly 1. If it jumps by 2 (or 4), raise `STEPS_PER_DETENT` to match.
 
 **Encoder acceleration is likewise untuned** — the `ACCEL_TABLE` thresholds (80/150/300ms between steps → 8/4/2/1 presets per step) are a starting guess, not bench-measured. Adjust to taste once you can actually feel how fast a real spin registers.
 
-`fm1_soundbank_data.h` (128 preset names, all 128 packed DX7 voices, and per-slot category index + colors, ~16KB) is generated by `tools/generate_soundbank_header.py` from `reference/` (below). Re-run that script if the reference data ever changes.
+`web_page.h` holds the WiFi-mode page (HTML/CSS/JS in one PROGMEM string).
 
-**WiFi Upload Mode is compiled and internally consistent but entirely unbench-tested** — no physical upload has been attempted yet (no board built). The upload parsing (multipart form handling, DX7 header/checksum validation) follows the standard ESP32 `WebServer` HTTPUpload pattern, but hasn't been exercised against a real `.syx` file over a real HTTP request. Test with a known-good bank file (e.g. `reference/banks/FM-1_factory_bank1.syx`, included in this repo) before trusting it with anything irreplaceable.
+**WiFi mode is untested on real hardware.** The page's logic (file parsing, load, multi-select drag, save, send sequence) was checked in desktop Chrome against a Python stand-in for the box's three endpoints, but not yet on the ESP32's `WebServer` (in particular the 16KB multipart upload) or on a phone's touch drag. Test with banks you have other copies of first.
 
 ### Flashing
 
@@ -206,20 +193,16 @@ An OLED display, a mode switch (to flip the OLED between sustain status and a li
 ```
 fm1_control_box/                       v2 — ESP32-S3 firmware
   fm1_control_box.ino
-  fm1_soundbank_data.h                 generated, see tools/ below
+  web_page.h                           the WiFi-mode soundbank page
 fm1_sustain_footswitch.ino             v1 — Arduino Uno firmware
-fm1_soundbank_app/                     computer-side CLI: list/reorder/send the FM-1's soundbank over USB MIDI
+fm1_soundbank_app/                     computer-side CLI: list/reorder/send a soundbank over USB MIDI
   fm1_soundbank.py
-  README.md                            its own docs — provenance, boot-patch findings, usage
-  reference/                           soundbank data (see below) — shared source of truth for
-                                        both this CLI tool and fm1_control_box's embedded FACTORY set
+  README.md                            its own docs — boot-patch findings, usage
+  banks/                               (gitignored) your 4 .syx files go here
+  reference/presets_provenance.json    where each FM-1 factory voice came from (names/sources only, no voice data)
 schematics/
   generate_fm1_control_box_schematic.py / fm1_control_box_*.{pdf,png,svg}   v2 diagrams
   generate_fm1_footswitch_schematic.py / fm1_footswitch_*.{pdf,png,svg}     v1 diagrams
-tools/
-  generate_soundbank_header.py         regenerates fm1_control_box/fm1_soundbank_data.h from fm1_soundbank_app/reference/
 ```
 
-`fm1_soundbank_app/reference/` is vendored from [KingParamount/fm1-factory-presets](https://github.com/KingParamount/fm1-factory-presets):
-- `reference/banks/*.syx` and `reference/banks/FM-1_factory_128voices_packed.bin` are that repo's own SysEx capture/decode work, released [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) (public domain) — the voice parameters themselves originate from Yamaha ROM/VRC cartridges and the community Dexed_cart 1.0 compilation, as selected/renamed by M-VAVE; see that repo's LICENCE.md and docs/protocol-and-provenance.md for the full per-voice trace and individual patch-author credits.
-- `reference/presets_provenance.json` was generated this session from that repo's `docs/protocol-and-provenance.md` (CC BY-SA 4.0) — attributed here accordingly.
+`fm1_soundbank_app/reference/presets_provenance.json` was generated from [KingParamount/fm1-factory-presets](https://github.com/KingParamount/fm1-factory-presets)' `docs/protocol-and-provenance.md` (CC BY-SA 4.0) and is shared under the same license. It contains names and sourcing notes only, no voice parameters.

@@ -257,15 +257,15 @@ notes1 = (
     "  flashing than v1's Arduino was, but disconnect it if uploads ever misbehave\n"
     "• If the FM-1 doesn't respond at all, it may expect Type B instead: swap Tip and Ring at the MIDI OUT jack (tip = GND, ring = signal, sleeve = GND)\n"
     "• Rotary Encoder (KY-040): turning it live-auditions presets with velocity-based acceleration (MIDI Program Change per step, needs FM-1 firmware\n"
-    "  v14+); its own SW pushbutton, long-pressed, sends a full 32-voice SysEx bank dump moving the browsed preset to slot 1 (\"Assign\") -- see\n"
+    "  v14+; tap SW for LIVE/SILENT); a medium press sends a 32-voice SysEx bank dump moving the browsed preset to slot 1 (\"Assign\") -- see\n"
     "  fm1_control_box.ino header comment and the project README for what Assign does and does not do (it can't press the FM-1's own A/B/C/D\n"
     "  confirmation knob for you)\n"
     "• KY-040 module has onboard pull-ups on CLK/DT/SW already -- the sketch's own INPUT_PULLUP on GPIO15 (SW) is redundant but harmless\n"
     "• Round TFT: VCC and BLK (backlight) both tie straight to 3V3 -- module's listed \"Driving voltage: 3-5V\" makes this safe without a level shifter,\n"
     "  but confirm your specific module's spec sheet before assuming that; backlight is always-on, no PWM dimming built yet\n"
-    "• Display fills with a color per preset category (piano/organ/brass/etc. -- see fm1_soundbank_data.h) so you recognize where you are while\n"
-    "  spinning through 128 presets, plus preset number/name, category name, sustain state, and an \"ASSIGN SENT, turn FM-1 Knob1\" prompt after a\n"
-    "  long-press"
+    "• Display fills with a color per FM-1 bank (A-D) so you recognize where you are while spinning through 128 presets, plus preset number/name,\n"
+    "  LIVE/SILENT, sustain state, and an \"ASSIGN SENT, turn FM-1 Knob\" prompt after Assign. Hold SW 3s for WiFi mode: a phone page to load,\n"
+    "  reorder and send your own .syx banks (none are included)"
 )
 line(ax1, 0.5, V3_Y - 0.8, 28.0, V3_Y - 0.8, lw=0.8)
 ax1.lines[-1].set_linestyle('dashed')

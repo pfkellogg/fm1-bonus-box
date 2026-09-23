@@ -4,62 +4,47 @@
  *
  *   - A rotary encoder (KY-040, with a built-in pushbutton) browses the
  *     FM-1's 128 presets, with velocity-based acceleration (spin fast to
- *     cover ground, slow down for single-step precision). Every detent
- *     sends a MIDI Program Change, so you hear the change live — same as
- *     turning the FM-1's own PRESETS knob.
- *   - A 1.28" round GC9A01 color TFT shows the browsed preset, color-coded
- *     by category (piano/organ/brass/etc.) so you recognize where you are
- *     while spinning through it, not just by reading text.
- *   - Short-pressing the encoder's button toggles between two BANK
- *     SOURCES — FACTORY (the recovered-factory set embedded in flash, see
- *     fm1_soundbank_data.h) and CUSTOM (a second 128-voice set stored in
- *     the ESP32's own filesystem, which you load via WiFi — see below).
- *     This exists because different FM-1 units ship with, or accumulate,
- *     different soundbank content — the embedded FACTORY set is one
- *     specific recovered snapshot, not necessarily what's on your unit,
- *     and it may not be what you actually want as your "best" set. See
- *     the project README for the full explanation.
- *   - A medium-length press (400ms-3s) "Assigns" the currently browsed
- *     preset (from whichever source is active) to slot 001 — the FM-1
- *     always boots into whatever's in slot 001, so this is how you set
- *     the boot sound from the box itself.
- *   - A long press (3s+) toggles WIFI UPLOAD MODE: the box becomes a WiFi
- *     access point serving a small upload page, so you can push a new
- *     CUSTOM bank in from a phone or laptop's browser — no MIDI cable,
- *     no fm1_soundbank_app, no computer running special software. This is
- *     the "load in the best soundbank without a computer" path: one-time
- *     setup from any device with a browser, then the box uses it standalone
- *     from then on.
+ *     cover ground, slow down for single-step precision). In LIVE mode
+ *     every detent sends a MIDI Program Change, so you hear the change
+ *     live — same as turning the FM-1's own PRESETS knob.
+ *   - Tapping the encoder's button toggles LIVE / SILENT browse. SILENT
+ *     stops sending Program Changes, so you can browse for an Assign
+ *     target mid-performance without the FM-1's sound changing under you;
+ *     the screen shows which preset is actually still playing. Going back
+ *     to LIVE snaps the browse position back to that playing preset (no
+ *     surprise sound change).
+ *   - A 1.28" round GC9A01 color TFT shows the browsed preset, its name
+ *     (read from the box's stored bank), and a background color per FM-1
+ *     bank quarter (A/B/C/D).
+ *   - A medium-length press (400ms-3s) "Assigns" the browsed preset to
+ *     slot 1 of its quarter — the FM-1 always boots into whatever's in
+ *     slot 001, so Assigning something from 001-032 is how you set the
+ *     boot sound from the box itself.
+ *   - A long press (3s+) toggles WIFI MODE: the box becomes a WiFi access
+ *     point serving the soundbank page (see WEB_PAGE below) where you pick
+ *     DX7 .syx banks from your phone/laptop, load them into the box's
+ *     128-voice bank, drag-and-drop to reorder (multi-select supported),
+ *     save, and send the result to the FM-1 — no computer software needed.
  *
- * IMPORTANT — why this can't just read your "better" bank off the FM-1:
+ * No voice data ships with this firmware. The box starts with an empty
+ * bank; everything in it comes from .syx files you load yourself, so the
+ * repository never has to carry anyone else's (unlicensed) patches.
+ *
+ * Why the box keeps its own copy of the bank:
  *   The FM-1 never sends its voice data back over MIDI, period — confirmed
  *   during the original factory-preset recovery (see
  *   https://github.com/KingParamount/fm1-factory-presets). It only
- *   receives SysEx. So there is NO way, from this box or any software, to
- *   ask the FM-1 "what's actually loaded in your memory right now" and
- *   get an answer. If your FM-1's current soundbank is better than the
- *   embedded FACTORY set, the only way to preserve and reuse it is to
- *   already have (or recreate) it as standard DX7 bank .syx files from
- *   wherever it originally came from (Dexed, another SysEx librarian, a
- *   backup you made before importing it, etc.) and upload those — this
- *   box cannot extract it from the FM-1 itself, and neither can anything
- *   else.
+ *   receives SysEx. So there is NO way to ask the FM-1 what's in its
+ *   memory; the box can only push. Its stored bank is what it believes the
+ *   FM-1 should hold, and Assign/Send work from that copy.
  *
- * IMPORTANT limits on Assign — read before relying on it:
- *   - Assign works from its own local copy of a soundbank (FACTORY in
- *     flash, or CUSTOM in the filesystem) — it does NOT read-modify-write
- *     whatever's really on the FM-1.
- *   - Because a DX7 bank dump is always 32 voices, Assign rewrites *all 32*
- *     presets in whichever quarter the target falls in (001-032 for
- *     anything in that range, 033-064 for the next, etc.) — with your
- *     chosen preset moved into slot 1 of that quarter. Anything currently
- *     sitting anywhere else in that same 32-preset range on the real FM-1
- *     gets overwritten back to whatever this box's active source has for
- *     that quarter.
- *   - After Assign sends the SysEx, the FM-1 still shows its own A/B/C/D
- *     bank-slot picker and needs a physical knob turn on the FM-1 itself
- *     to commit — this box can prompt you on the screen, but can't press
- *     that knob for you.
+ * IMPORTANT limits on Assign / Send:
+ *   - A DX7 bank dump is always 32 voices, so both rewrite a whole quarter
+ *     (001-032, 033-064, 065-096, 097-128) of the FM-1 at once. They refuse
+ *     to send a quarter that still has empty slots in the box's bank.
+ *   - After each dump, the FM-1 shows its own A/B/C/D bank-slot picker and
+ *     needs a physical knob turn on the FM-1 itself to commit — the box
+ *     and web page prompt you, but can't press that knob for you.
  *
  * Hardware
  * --------
@@ -119,7 +104,7 @@
  * Mini's profile if the vendor publishes one), USB-C for both power and
  * flashing. **Partition scheme must include a LittleFS/SPIFFS partition**
  * (e.g. "Default 4MB with spiffs") — Tools > Partition Scheme — or the
- * CUSTOM bank storage will fail to mount at runtime.
+ * box's bank won't persist across power cycles.
  */
 
 #include <Arduino.h>
@@ -131,7 +116,7 @@
 #include <WebServer.h>
 #include <LittleFS.h>
 
-#include "fm1_soundbank_data.h"
+#include "web_page.h"
 
 // ---- Pins ----
 static const int PIN_MIDI_TX = 4;
@@ -154,6 +139,14 @@ HardwareSerial MidiSerial(1);
 static const int TFT_SIZE = 240;
 Adafruit_GC9A01A tft(PIN_TFT_CS, PIN_TFT_DC, PIN_TFT_MOSI, PIN_TFT_SCK, PIN_TFT_RST);
 
+// Background color per FM-1 bank quarter (A/B/C/D), RGB565.
+static const uint16_t QUARTER_COLOR565[4] = {
+  0xFDA7,  // A rgb(255, 180, 60)
+  0x3E56,  // B rgb(60, 200, 180)
+  0x93DF,  // C rgb(150, 120, 255)
+  0x6BD0,  // D rgb(110, 120, 135)
+};
+
 // ---- Encoder ----
 ESP32Encoder encoder;
 // attachHalfQuad() typically yields 1-2 raw counts per physical detent on a
@@ -172,86 +165,79 @@ static const AccelStep ACCEL_TABLE[] = {
   {ULONG_MAX, 1},
 };
 
-// ---- Bank sources ----
-enum BankSource { SRC_FACTORY, SRC_CUSTOM };
-BankSource activeSource = SRC_FACTORY;
+// ---- The box's soundbank ----
+// 128 packed DX7 voices (128 bytes each, same layout as the body of a
+// 32-voice bulk dump). An all-zero voice means "empty slot" — a real voice
+// can never be all zeros, since its name bytes are printable ASCII.
+static const int VOICE_LEN = 128;
+static const int BANK_BYTES = 128 * VOICE_LEN;  // 16KB
+static const char *BANK_PATH = "/bank.bin";
+static uint8_t bankVoices[128][VOICE_LEN];
 
-static const char *CUSTOM_BANK_PATH = "/custom_voices.bin";
-static uint8_t customVoices[128][VOICE_LEN];  // 16KB, fits RAM easily
-
-// Which category (0-12) a slot belongs to, purely by position — same
-// interleave convention the factory set uses (see
-// tools/generate_soundbank_header.py's category_for_slot()). Applied to
-// BOTH sources: for CUSTOM it's a display convenience, not a guarantee
-// your uploaded voices are actually piano/organ/etc. in that order.
-uint8_t categoryForSlot(int slot) {
-  int bank = slot / 32;
-  if (bank < 3) return bank * 4 + (slot % 32) % 4;
-  return 12;  // PERC/FX
-}
-
-uint16_t categoryColor(uint8_t cat) {
-  return pgm_read_word(&CATEGORY_COLOR565[cat]);
-}
-
-void getVoiceBytes(int slot, uint8_t out[VOICE_LEN]) {
-  if (activeSource == SRC_CUSTOM) {
-    memcpy(out, customVoices[slot], VOICE_LEN);
-  } else {
-    memcpy_P(out, FACTORY_VOICES[slot], VOICE_LEN);
+bool slotEmpty(int slot) {
+  for (int i = 0; i < VOICE_LEN; i++) {
+    if (bankVoices[slot][i]) return false;
   }
+  return true;
 }
 
-// DX7 packed voices carry their own 10-char name at byte offset 118 —
-// used directly for CUSTOM so no separate name table is needed for
-// whatever gets uploaded. FACTORY uses the curated PRESET_NAMES table
-// instead (fixes a couple of known encoding quirks in the raw bytes, see
-// fm1_soundbank_app/README.md).
+bool quarterFull(int quarter) {
+  for (int i = 0; i < 32; i++) {
+    if (slotEmpty(quarter * 32 + i)) return false;
+  }
+  return true;
+}
+
+bool bankAllEmpty() {
+  for (int i = 0; i < 128; i++) {
+    if (!slotEmpty(i)) return false;
+  }
+  return true;
+}
+
+// DX7 packed voices carry their own 10-char name at byte offset 118.
 void getVoiceName(int slot, char *outBuf, size_t bufLen) {
-  if (activeSource == SRC_CUSTOM) {
-    char raw[11];
-    memcpy(raw, &customVoices[slot][118], 10);
-    raw[10] = 0;
-    int end = 9;
-    while (end >= 0 && raw[end] == ' ') end--;
-    raw[end + 1] = 0;
-    strncpy(outBuf, raw, bufLen - 1);
+  if (slotEmpty(slot)) {
+    strncpy(outBuf, "(empty)", bufLen - 1);
     outBuf[bufLen - 1] = 0;
-  } else {
-    strncpy(outBuf, PRESET_NAMES[slot], bufLen - 1);
-    outBuf[bufLen - 1] = 0;
-  }
-}
-
-void loadOrInitCustomBank() {
-  File f = LittleFS.open(CUSTOM_BANK_PATH, "r");
-  if (f && f.size() == 128 * VOICE_LEN) {
-    f.read((uint8_t *)customVoices, 128 * VOICE_LEN);
-    f.close();
     return;
   }
-  if (f) f.close();
-  // No valid custom bank yet: start CUSTOM as a copy of FACTORY, so
-  // toggling to it before uploading anything still gives valid, playable
-  // voices rather than silence/garbage.
-  for (int i = 0; i < 128; i++) memcpy_P(customVoices[i], FACTORY_VOICES[i], VOICE_LEN);
-  File wf = LittleFS.open(CUSTOM_BANK_PATH, "w");
-  if (wf) {
-    wf.write((uint8_t *)customVoices, 128 * VOICE_LEN);
-    wf.close();
+  char raw[11];
+  for (int i = 0; i < 10; i++) {
+    char c = (char)bankVoices[slot][118 + i];
+    raw[i] = (c >= 32 && c <= 126) ? c : ' ';
   }
+  raw[10] = 0;
+  int end = 9;
+  while (end >= 0 && raw[end] == ' ') end--;
+  raw[end + 1] = 0;
+  strncpy(outBuf, raw, bufLen - 1);
+  outBuf[bufLen - 1] = 0;
 }
 
-void saveCustomBank() {
-  File f = LittleFS.open(CUSTOM_BANK_PATH, "w");
-  if (f) {
-    f.write((uint8_t *)customVoices, 128 * VOICE_LEN);
-    f.close();
-  }
+bool fsMounted = false;
+
+void loadBank() {
+  memset(bankVoices, 0, sizeof(bankVoices));
+  if (!fsMounted) return;
+  File f = LittleFS.open(BANK_PATH, "r");
+  if (f && f.size() == BANK_BYTES) f.read((uint8_t *)bankVoices, BANK_BYTES);
+  if (f) f.close();
+}
+
+bool saveBank() {
+  if (!fsMounted) return false;
+  File f = LittleFS.open(BANK_PATH, "w");
+  if (!f) return false;
+  size_t n = f.write((uint8_t *)bankVoices, BANK_BYTES);
+  f.close();
+  return n == BANK_BYTES;
 }
 
 // ---- State ----
-int browseIndex = 0;              // 0-127, last preset number we sent a Program Change for
+int browseIndex = 0;              // 0-127, preset shown on screen (what Assign acts on)
+int playingIndex = 0;             // 0-127, last preset we actually sent a Program Change for
+bool liveBrowse = true;           // LIVE: every detent sends a Program Change. SILENT: browse only.
 long lastDetentCount = 0;         // encoder.getCount() / STEPS_PER_DETENT, at last processed detent
 unsigned long lastDetentAt = 0;
 bool sustainOn = false;
@@ -260,22 +246,32 @@ bool sustainOn = false;
 // fires twice. Three brackets by how long it was held.
 unsigned long encBtnPressedAt = 0;
 bool encBtnDown = false;
-static const unsigned long SHORT_PRESS_MAX_MS = 400;   // < this: toggle bank source
-static const unsigned long WIFI_HOLD_MS = 3000;        // >= this: toggle WiFi upload mode
+static const unsigned long SHORT_PRESS_MAX_MS = 400;   // < this: toggle LIVE/SILENT
+static const unsigned long WIFI_HOLD_MS = 3000;        // >= this: toggle WiFi mode
                                                          // in between: Assign
 int heldHint = 0;  // 0=none, 1="release for Assign", 2="release for WiFi" — live feedback while held
 
-unsigned long assignMessageUntil = 0;
-String assignMessageLine1, assignMessageLine2;
+unsigned long bannerUntil = 0;
+String bannerLine1, bannerLine2;
+bool bannerNeedsKnob = false;
 
-// ---- WiFi upload mode ----
+// ---- WiFi mode ----
 bool wifiModeActive = false;
 WebServer server(80);
-static uint8_t uploadBuf[4104];
+static uint8_t uploadBuf[BANK_BYTES];
 static size_t uploadLen = 0;
-bool quarterUploadedThisSession[4] = {false, false, false, false};
 static const char *WIFI_AP_SSID = "FM1-ControlBox";
 static const char *WIFI_AP_PASSWORD = "fm1setup1";  // 8+ chars required by softAP
+String wifiStatusLine = "";
+
+void drawScreen();
+
+void showBanner(const String &line1, const String &line2, bool needsKnob) {
+  bannerLine1 = line1;
+  bannerLine2 = line2;
+  bannerNeedsKnob = needsKnob;
+  bannerUntil = millis() + 6000;
+}
 
 // ---------------------------------------------------------------------
 // MIDI helpers
@@ -296,129 +292,119 @@ void sendSustain(bool on) {
   midiControlChange(64, on ? 127 : 0);
 }
 
-// Builds and sends a 32-voice DX7 bank dump (same format/checksum as
-// fm1_soundbank_app's `export`), with `targetSlot` (0-127) moved to
-// position 0 of its bank-of-32 and everything else shifted down. Pulls
-// voice bytes from whichever source (FACTORY/CUSTOM) is currently active.
-void assignPresetToSlotOne(int targetSlot) {
-  int bankStart = (targetSlot / 32) * 32;  // 0, 32, 64, or 96
-
-  int order[32];
-  int w = 0;
-  order[w++] = targetSlot;
-  for (int i = 0; i < 32; i++) {
-    int orig = bankStart + i;
-    if (orig != targetSlot) order[w++] = orig;
-  }
-
-  static uint8_t body[4096];
-  for (int i = 0; i < 32; i++) {
-    uint8_t voiceBuf[VOICE_LEN];
-    getVoiceBytes(order[i], voiceBuf);
-    memcpy(&body[i * VOICE_LEN], voiceBuf, VOICE_LEN);
-  }
-
+// Sends one quarter (0-3) of the box's bank as a standard DX7 32-voice
+// bulk dump: F0 43 00 09 20 00 <4096 bytes> <checksum> F7.
+void sendQuarter(int quarter) {
+  const uint8_t *body = bankVoices[quarter * 32];
   uint32_t sum = 0;
   for (int i = 0; i < 4096; i++) sum += body[i];
   uint8_t checksum = (128 - (sum & 0x7F)) & 0x7F;
 
-  // F0 43 00 09 20 00 <4096 bytes> <checksum> F7 — standard DX7 32-voice bulk dump
-  MidiSerial.write(0xF0);
-  MidiSerial.write(0x43);
-  MidiSerial.write(0x00);
-  MidiSerial.write(0x09);
-  MidiSerial.write(0x20);
-  MidiSerial.write(0x00);
+  static const uint8_t header[6] = {0xF0, 0x43, 0x00, 0x09, 0x20, 0x00};
+  MidiSerial.write(header, sizeof(header));
   MidiSerial.write(body, 4096);
   MidiSerial.write(checksum);
   MidiSerial.write(0xF7);
+  MidiSerial.flush();
+}
 
-  char destLetter = 'A' + (bankStart / 32);
-  assignMessageLine1 = "ASSIGN SENT";
-  assignMessageLine2 = String("Turn FM-1 Knob1 -> ") + destLetter;
-  assignMessageUntil = millis() + 6000;
+// Moves `targetSlot` to position 0 of its quarter (everything before it
+// shifts down one) in the box's own bank, saves, and sends that quarter —
+// so the box's copy keeps matching what the FM-1 now holds.
+void assignPresetToSlotOne(int targetSlot) {
+  int quarter = targetSlot / 32;
+  int bankStart = quarter * 32;
+  char letter = 'A' + quarter;
+
+  if (!quarterFull(quarter)) {
+    showBanner("NOT SENT", String("Bank ") + letter + " has empty slots", false);
+    return;
+  }
+
+  uint8_t moving[VOICE_LEN];
+  memcpy(moving, bankVoices[targetSlot], VOICE_LEN);
+  memmove(bankVoices[bankStart + 1], bankVoices[bankStart], (targetSlot - bankStart) * VOICE_LEN);
+  memcpy(bankVoices[bankStart], moving, VOICE_LEN);
+  saveBank();
+
+  sendQuarter(quarter);
+  browseIndex = bankStart;
+  showBanner("ASSIGN SENT", String("Turn FM-1 Knob") + (quarter + 1) + " -> " + letter, true);
 }
 
 // ---------------------------------------------------------------------
-// WiFi upload mode — push a CUSTOM bank in from a phone/laptop browser,
-// no MIDI cable and no fm1_soundbank_app needed.
+// WiFi mode — the soundbank page (web_page.h) plus a tiny API:
+//   GET  /bank.bin   the box's 128-voice bank, raw 16384 bytes
+//   POST /bank       multipart upload, field "bank": 16384 bytes, replaces + saves it
+//   POST /send?q=N   sends quarter N (0-3) to the FM-1 over MIDI
+// All .syx parsing, loading and reordering happens in the browser; the box
+// only stores and sends the result.
 // ---------------------------------------------------------------------
 
-const char UPLOAD_PAGE[] PROGMEM = R"HTML(<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="font-family:sans-serif;max-width:480px;margin:1em auto;padding:0 1em">
-<h2>FM-1 Control Box &mdash; Custom Soundbank</h2>
-<p>Upload a standard DX7 32-voice bank dump (.syx, exactly 4104 bytes) for each quarter you want to set. Quarters you don't upload keep whatever's already stored here (starts as a copy of the factory set).</p>
-<form method="POST" action="/upload" enctype="multipart/form-data">
-<p>
-<label><input type="radio" name="quarter" value="0" checked> Bank A &mdash; presets 001-032</label><br>
-<label><input type="radio" name="quarter" value="1"> Bank B &mdash; presets 033-064</label><br>
-<label><input type="radio" name="quarter" value="2"> Bank C &mdash; presets 065-096</label><br>
-<label><input type="radio" name="quarter" value="3"> Bank D &mdash; presets 097-128</label>
-</p>
-<input type="file" name="bankfile" accept=".syx"><br><br>
-<input type="submit" value="Upload this quarter">
-</form>
-<p><small>Get .syx bank files from Dexed, SysEx Librarian, PocketMIDI, or any DX7 patch source. This box can't read your FM-1's current voices back out over MIDI &mdash; it only receives what you upload here.</small></p>
-</body></html>
-)HTML";
-
-void handleUploadForm() {
-  server.send_P(200, "text/html", UPLOAD_PAGE);
+void handleRoot() {
+  server.send_P(200, "text/html", WEB_PAGE);
 }
 
-void handleUploadData() {
+void handleGetBank() {
+  server.sendHeader("Cache-Control", "no-store");
+  server.send_P(200, "application/octet-stream", (const char *)bankVoices, BANK_BYTES);
+}
+
+void handleBankUploadData() {
   HTTPUpload &upload = server.upload();
   if (upload.status == UPLOAD_FILE_START) {
     uploadLen = 0;
   } else if (upload.status == UPLOAD_FILE_WRITE) {
-    if (uploadLen + upload.currentSize <= sizeof(uploadBuf)) {
+    if (uploadLen != SIZE_MAX && uploadLen + upload.currentSize <= sizeof(uploadBuf)) {
       memcpy(uploadBuf + uploadLen, upload.buf, upload.currentSize);
       uploadLen += upload.currentSize;
     } else {
-      uploadLen = SIZE_MAX;  // mark oversized, rejected in handleUploadComplete
+      uploadLen = SIZE_MAX;  // mark oversized, rejected below
     }
   }
 }
 
-void handleUploadComplete() {
-  int quarter = server.hasArg("quarter") ? server.arg("quarter").toInt() : -1;
-  String msg;
-
-  if (uploadLen == SIZE_MAX) {
-    msg = "Error: file too large — expected exactly 4104 bytes (a standard DX7 32-voice bank dump).";
-  } else if (uploadLen != 4104) {
-    msg = "Error: file must be exactly 4104 bytes. Got " + String((unsigned)uploadLen) + " bytes.";
-  } else if (uploadBuf[0] != 0xF0 || uploadBuf[4103] != 0xF7 || uploadBuf[1] != 0x43 || uploadBuf[3] != 0x09 || uploadBuf[4] != 0x20) {
-    msg = "Error: doesn't look like a DX7 32-voice bank dump (bad SysEx header).";
-  } else if (quarter < 0 || quarter > 3) {
-    msg = "Error: no quarter selected.";
-  } else {
-    uint32_t sum = 0;
-    for (int i = 0; i < 4096; i++) sum += uploadBuf[6 + i];
-    uint8_t checksum = (128 - (sum & 0x7F)) & 0x7F;
-    if (checksum != uploadBuf[6 + 4096]) {
-      msg = "Error: checksum mismatch — file may be corrupt or truncated.";
-    } else {
-      memcpy(&customVoices[quarter * 32], &uploadBuf[6], 4096);
-      saveCustomBank();
-      quarterUploadedThisSession[quarter] = true;
-      msg = String("Loaded into Bank ") + (char)('A' + quarter) + ". Upload the next quarter if you have one, or close this page and use the box (short-press the knob to switch to CUSTOM if it isn't already active).";
-      drawScreen();
-    }
+void handleBankUploadDone() {
+  if (uploadLen != BANK_BYTES) {
+    server.send(400, "text/plain", "Bank must be exactly 16384 bytes.");
+    return;
   }
+  memcpy(bankVoices, uploadBuf, BANK_BYTES);
+  if (!saveBank()) {
+    server.send(500, "text/plain", "Couldn't write to flash (check the partition scheme includes LittleFS). Kept in memory until power-off.");
+    return;
+  }
+  wifiStatusLine = "Bank saved";
+  drawScreen();
+  server.send(200, "text/plain", "Saved to the box.");
+}
 
-  server.send(200, "text/html",
-    "<html><body style='font-family:sans-serif;max-width:480px;margin:1em auto;padding:0 1em'>"
-    "<p>" + msg + "</p><p><a href=\"/\">Back</a></p></body></html>");
+void handleSend() {
+  int q = server.hasArg("q") ? server.arg("q").toInt() : -1;
+  if (q < 0 || q > 3) {
+    server.send(400, "text/plain", "Bad quarter.");
+    return;
+  }
+  char letter = 'A' + q;
+  if (!quarterFull(q)) {
+    server.send(409, "text/plain", String("Bank ") + letter + " has empty slots, not sent.");
+    return;
+  }
+  sendQuarter(q);
+  wifiStatusLine = String("Sent ") + letter + ": turn FM-1 Knob" + (q + 1);
+  drawScreen();
+  server.send(200, "text/plain", "Sent.");
 }
 
 void enterWifiMode() {
   wifiModeActive = true;
-  for (int i = 0; i < 4; i++) quarterUploadedThisSession[i] = false;
+  wifiStatusLine = "";
   WiFi.mode(WIFI_AP);
   WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASSWORD);
-  server.on("/", HTTP_GET, handleUploadForm);
-  server.on("/upload", HTTP_POST, handleUploadComplete, handleUploadData);
+  server.on("/", HTTP_GET, handleRoot);
+  server.on("/bank.bin", HTTP_GET, handleGetBank);
+  server.on("/bank", HTTP_POST, handleBankUploadDone, handleBankUploadData);
+  server.on("/send", HTTP_POST, handleSend);
   server.begin();
   drawScreen();
 }
@@ -432,7 +418,7 @@ void exitWifiMode() {
 }
 
 // ---------------------------------------------------------------------
-// Display — 240x240 round TFT, category-colored background
+// Display — 240x240 round TFT, background color by bank quarter
 // ---------------------------------------------------------------------
 
 // Adafruit GFX's default font is 6px wide / 8px tall per textsize unit.
@@ -448,18 +434,19 @@ void printCentered(int cy, const char *text, int textSize, uint16_t color) {
 
 void drawWifiScreen() {
   tft.fillScreen(GC9A01A_BLUE);
-  printCentered(30, "WIFI UPLOAD MODE", 1, GC9A01A_WHITE);
-  printCentered(55, WIFI_AP_SSID, 2, GC9A01A_WHITE);
-  printCentered(80, WIFI_AP_PASSWORD, 1, GC9A01A_WHITE);
-  printCentered(105, "http://192.168.4.1", 1, GC9A01A_WHITE);
+  printCentered(40, "WIFI MODE", 2, GC9A01A_WHITE);
+  printCentered(75, WIFI_AP_SSID, 2, GC9A01A_WHITE);
+  printCentered(100, WIFI_AP_PASSWORD, 1, GC9A01A_WHITE);
+  printCentered(125, "http://192.168.4.1", 1, GC9A01A_WHITE);
 
   char line[24];
-  for (int i = 0; i < 4; i++) {
-    bool has = quarterUploadedThisSession[i];
-    snprintf(line, sizeof(line), "Bank %c: %s", 'A' + i, has ? "loaded" : "-");
-    printCentered(135 + i * 20, line, 1, has ? GC9A01A_GREEN : GC9A01A_WHITE);
+  for (int q = 0; q < 4; q++) {
+    bool full = quarterFull(q);
+    snprintf(line, sizeof(line), "Bank %c: %s", 'A' + q, full ? "ready" : "incomplete");
+    printCentered(145 + q * 13, line, 1, full ? GC9A01A_GREEN : GC9A01A_WHITE);
   }
 
+  if (wifiStatusLine.length()) printCentered(203, wifiStatusLine.c_str(), 1, GC9A01A_YELLOW);
   printCentered(220, "Hold knob 3s to exit", 1, GC9A01A_WHITE);
 }
 
@@ -469,30 +456,43 @@ void drawScreen() {
     return;
   }
 
-  if (millis() < assignMessageUntil) {
+  if (millis() < bannerUntil) {
     tft.fillScreen(GC9A01A_ORANGE);
-    printCentered(95, assignMessageLine1.c_str(), 3, GC9A01A_BLACK);
-    printCentered(135, assignMessageLine2.c_str(), 2, GC9A01A_BLACK);
-    printCentered(170, "(can't press it", 1, GC9A01A_BLACK);
-    printCentered(185, " for you)", 1, GC9A01A_BLACK);
+    printCentered(95, bannerLine1.c_str(), 3, GC9A01A_BLACK);
+    printCentered(135, bannerLine2.c_str(), bannerLine2.length() > 20 ? 1 : 2, GC9A01A_BLACK);
+    if (bannerNeedsKnob) {
+      printCentered(170, "(can't press it", 1, GC9A01A_BLACK);
+      printCentered(185, " for you)", 1, GC9A01A_BLACK);
+    }
     return;
   }
 
-  uint8_t cat = categoryForSlot(browseIndex);
-  uint16_t bg = categoryColor(cat);
-  tft.fillScreen(bg);
+  int quarter = browseIndex / 32;
+  tft.fillScreen(QUARTER_COLOR565[quarter]);
 
   char numBuf[5];
   snprintf(numBuf, sizeof(numBuf), "%03d", browseIndex + 1);
   printCentered(42, numBuf, 2, GC9A01A_WHITE);
 
-  char nameBuf[16];
-  getVoiceName(browseIndex, nameBuf, sizeof(nameBuf));
-  printCentered(90, nameBuf, 3, GC9A01A_WHITE);
+  if (bankAllEmpty()) {
+    printCentered(90, "NO BANK", 3, GC9A01A_WHITE);
+    printCentered(122, "hold knob 3s", 1, GC9A01A_BLACK);
+    printCentered(136, "to load via WiFi", 1, GC9A01A_BLACK);
+  } else {
+    char nameBuf[16];
+    getVoiceName(browseIndex, nameBuf, sizeof(nameBuf));
+    printCentered(90, nameBuf, 3, GC9A01A_WHITE);
+    char bankBuf[8];
+    snprintf(bankBuf, sizeof(bankBuf), "BANK %c", 'A' + quarter);
+    printCentered(128, bankBuf, 2, GC9A01A_BLACK);
+  }
 
-  printCentered(128, CATEGORY_NAMES[cat], 2, GC9A01A_BLACK);
-
-  printCentered(155, activeSource == SRC_CUSTOM ? "[ CUSTOM ]" : "[ FACTORY ]", 1, GC9A01A_BLACK);
+  printCentered(155, liveBrowse ? "LIVE" : "SILENT", 1, GC9A01A_BLACK);
+  if (!liveBrowse) {
+    char playBuf[24];
+    snprintf(playBuf, sizeof(playBuf), "FM-1 playing: %03d", playingIndex + 1);
+    printCentered(172, playBuf, 1, GC9A01A_WHITE);
+  }
 
   char sustBuf[16];
   snprintf(sustBuf, sizeof(sustBuf), "Sustain: %s", sustainOn ? "ON" : "off");
@@ -501,9 +501,9 @@ void drawScreen() {
   if (encBtnDown && heldHint == 1) {
     printCentered(212, "release: ASSIGN", 1, GC9A01A_WHITE);
   } else if (encBtnDown && heldHint == 2) {
-    printCentered(212, "release: WIFI UPLOAD", 1, GC9A01A_WHITE);
+    printCentered(212, "release: WIFI MODE", 1, GC9A01A_WHITE);
   } else {
-    printCentered(212, "tap:src  hold:assign/wifi", 1, GC9A01A_WHITE);
+    printCentered(212, "tap:live hold:assign/wifi", 1, GC9A01A_WHITE);
   }
 }
 
@@ -521,14 +521,10 @@ void setup() {
   tft.setRotation(0);
   tft.fillScreen(GC9A01A_BLACK);
 
-  if (!LittleFS.begin(true)) {
-    // Filesystem mount/format failed — CUSTOM bank storage won't work.
-    // FACTORY still works fine; this just gets stuck initializing
-    // customVoices from FACTORY in RAM each boot without persisting.
-    for (int i = 0; i < 128; i++) memcpy_P(customVoices[i], FACTORY_VOICES[i], VOICE_LEN);
-  } else {
-    loadOrInitCustomBank();
-  }
+  // If the mount fails the bank still works from RAM, it just won't
+  // survive a power cycle.
+  fsMounted = LittleFS.begin(true);
+  loadBank();
 
   ESP32Encoder::useInternalWeakPullResistors = puType::up;
   encoder.attachHalfQuad(PIN_ENC_CLK, PIN_ENC_DT);
@@ -551,9 +547,9 @@ void loop() {
     if (!wifiModeActive) drawScreen();
   }
 
-  // --- Encoder rotation -> browse (with acceleration) + live Program Change ---
+  // --- Encoder rotation -> browse (with acceleration) + Program Change in LIVE ---
   // (Still tracked in WiFi mode so nothing's lost, but only acted on/drawn
-  // when not in WiFi mode, to keep that screen showing upload status.)
+  // when not in WiFi mode, to keep that screen showing its status.)
   long detentCount = encoder.getCount() / STEPS_PER_DETENT;
   long deltaDetents = detentCount - lastDetentCount;
   if (deltaDetents != 0) {
@@ -570,7 +566,10 @@ void loop() {
       int newIndex = browseIndex + (int)deltaDetents * step;
       newIndex = ((newIndex % 128) + 128) % 128;  // wrap 0-127 regardless of sign
       browseIndex = newIndex;
-      midiProgramChange((uint8_t)browseIndex);
+      if (liveBrowse) {
+        playingIndex = browseIndex;
+        midiProgramChange((uint8_t)playingIndex);
+      }
       drawScreen();
     }
   }
@@ -596,7 +595,8 @@ void loop() {
     if (wifiModeActive) {
       exitWifiMode();
     } else if (heldMs < SHORT_PRESS_MAX_MS) {
-      activeSource = (activeSource == SRC_FACTORY) ? SRC_CUSTOM : SRC_FACTORY;
+      liveBrowse = !liveBrowse;
+      if (liveBrowse) browseIndex = playingIndex;  // snap back to what's actually sounding
       drawScreen();
     } else if (heldMs < WIFI_HOLD_MS) {
       assignPresetToSlotOne(browseIndex);
@@ -606,10 +606,10 @@ void loop() {
     }
   }
 
-  // Keep the "Assign sent" banner visible for its duration, then fall back
-  // to the normal screen automatically.
+  // Keep the Assign banner visible for its duration, then fall back to the
+  // normal screen automatically.
   static bool showingBanner = false;
-  bool bannerNow = (millis() < assignMessageUntil) && !wifiModeActive;
+  bool bannerNow = (millis() < bannerUntil) && !wifiModeActive;
   if (bannerNow != showingBanner) {
     showingBanner = bannerNow;
     drawScreen();

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-fm1_soundbank.py — list, reorder, and re-send the M-VAVE FM-1's 128-voice
-factory soundbank.
+fm1_soundbank.py — list, reorder, and re-send a 128-voice soundbank for the
+M-VAVE FM-1.
 
 Background
 ----------
@@ -13,19 +13,21 @@ preset 001, whatever that currently is. So the only way to make it boot into
 a piano sound is to make sure a piano voice actually occupies slot 001 — by
 reordering the bank — not by setting a preference (there isn't one).
 
-The factory voices themselves are DX7-community patches (not Yamaha
-originals for the most part) recovered by KingParamount from M-VAVE's
-updater tool: https://github.com/KingParamount/fm1-factory-presets
-Full per-voice provenance is in reference/presets_provenance.json here
-(sourced from that repo's docs/protocol-and-provenance.md).
+No voice data ships with this tool. Put the 4 DX7 32-voice bank .syx files
+you want to work with in banks/ next to this script (gitignored, so they
+never end up in the repo). Sorted by filename, they become banks A-D
+(presets 001-032, 033-064, 065-096, 097-128). For the FM-1's own factory
+set, see https://github.com/KingParamount/fm1-factory-presets —
+reference/presets_provenance.json here documents where each of those
+factory voices came from.
 
 What this tool does
 --------------------
-- list      Print all 128 presets in current order, with provenance.
+- list      Print all 128 presets in current order.
 - move      Move one preset to a new slot (e.g. move your favorite piano to
             slot 1 so it's what plays on power-on).
 - reorder   Apply a full custom order from a file (one preset-number-per-line).
-- reset     Restore factory order.
+- reset     Restore the original order of the files in banks/.
 - export    Write the current order out as 4 DX7 bank .syx files, ready to
             import into the FM-1.
 - send      Send one exported bank .syx to the FM-1 over MIDI. You still
@@ -44,42 +46,30 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-REF_DIR = HERE / "reference"
-BANKS_DIR = REF_DIR / "banks"
+BANKS_DIR = HERE / "banks"
 STATE_DIR = HERE / "state"
 STATE_FILE = STATE_DIR / "current_order.json"
-PACKED_FILE = REF_DIR / "FM-1_factory_128voices_packed.bin"
-PROVENANCE_FILE = REF_DIR / "presets_provenance.json"
 EXPORT_DIR = HERE / "export"
 
 VOICE_LEN = 128  # bytes per packed DX7 voice
 VOICES_PER_BANK = 32
-BANK_FILES = [
-    "FM-1_factory_bank1.syx",
-    "FM-1_factory_bank2.syx",
-    "FM-1_factory_bank3.syx",
-    "FM-1_factory_bank4.syx",
-]
 
 DEFAULT_PORT_NAME = "USB Composite Device"  # how the FM-1 enumerates over USB
 
 
-def load_provenance():
-    with open(PROVENANCE_FILE) as f:
-        return json.load(f)
-
-
 def load_packed_voices():
-    """Return list of 128 packed 128-byte voice blobs, in original factory order."""
-    if PACKED_FILE.exists():
-        data = PACKED_FILE.read_bytes()
-        assert len(data) == 128 * VOICE_LEN, f"unexpected packed file size {len(data)}"
-        return [data[i * VOICE_LEN:(i + 1) * VOICE_LEN] for i in range(128)]
-
-    # fall back to reading the 4 bank files directly
+    """Return list of 128 packed 128-byte voice blobs, in banks/ file order."""
+    files = sorted(BANKS_DIR.glob("*.syx")) if BANKS_DIR.is_dir() else []
+    if len(files) != 4:
+        raise SystemExit(
+            f"Put exactly 4 DX7 32-voice bank .syx files in {BANKS_DIR} "
+            f"(found {len(files)}). Sorted by filename they become banks A-D."
+        )
     voices = []
-    for fname in BANK_FILES:
-        raw = (BANKS_DIR / fname).read_bytes()
+    for path in files:
+        raw = path.read_bytes()
+        if len(raw) != 4104 or raw[:6] != bytes([0xF0, 0x43, 0x00, 0x09, 0x20, 0x00]) or raw[-1] != 0xF7:
+            raise SystemExit(f"{path.name} isn't a standard DX7 32-voice bank dump (4104 bytes)")
         body = raw[6:6 + 4096]
         for i in range(VOICES_PER_BANK):
             voices.append(body[i * VOICE_LEN:(i + 1) * VOICE_LEN])
@@ -87,8 +77,12 @@ def load_packed_voices():
     return voices
 
 
+def voice_names(voices):
+    return [v[118:128].decode("ascii", "replace").rstrip() for v in voices]
+
+
 def load_order():
-    """Current order = list of 128 original slot indices. Defaults to factory (identity) order."""
+    """Current order = list of 128 original slot indices. Defaults to banks/ (identity) order."""
     if STATE_FILE.exists():
         with open(STATE_FILE) as f:
             order = json.load(f)
@@ -103,7 +97,7 @@ def save_order(order):
         json.dump(order, f)
 
 
-def find_preset(provenance, order, query):
+def find_preset(names, order, query):
     """Find a preset by number (1-128) or case-insensitive name match against
     its current position. Returns the position (0-127) in the CURRENT order."""
     query = query.strip()
@@ -113,40 +107,33 @@ def find_preset(provenance, order, query):
             raise SystemExit(f"Preset number must be 1-128, got {n}")
         return n - 1
     q = query.lower()
-    matches = [pos for pos, orig in enumerate(order) if q in provenance[orig]["name"].lower()]
+    matches = [pos for pos, orig in enumerate(order) if q in names[orig].lower()]
     if not matches:
         raise SystemExit(f"No preset matches '{query}'")
     if len(matches) > 1:
-        names = [f"{pos + 1:03d} {provenance[order[pos]]['name']}" for pos in matches]
-        raise SystemExit("Multiple presets match '" + query + "':\n  " + "\n  ".join(names))
+        hits = [f"{pos + 1:03d} {names[order[pos]]}" for pos in matches]
+        raise SystemExit("Multiple presets match '" + query + "':\n  " + "\n  ".join(hits))
     return matches[0]
 
 
 def cmd_list(args):
-    provenance = load_provenance()
+    names = voice_names(load_packed_voices())
     order = load_order()
-    is_factory = order == list(range(128))
-    print(f"FM-1 soundbank — {'factory order' if is_factory else 'CUSTOM order (not yet sent to the FM-1 unless you ran `send`)'}\n")
+    is_original = order == list(range(128))
+    print(f"FM-1 soundbank — {'banks/ order' if is_original else 'CUSTOM order (not yet sent to the FM-1 unless you ran `send`)'}\n")
     for pos, orig in enumerate(order):
-        p = provenance[orig]
         marker = " <- boots here on power-on" if pos == 0 else ""
-        line = f"{pos + 1:03d}  {p['name']:<12}"
-        if args.provenance:
-            src = p["dexed_cart_source"] or "?"
-            yam = f"  [{p['yamaha_cartridge']}]" if p["yamaha_cartridge"] else ""
-            orig_name = f"  (orig: {p['original_name']})" if p["original_name"] and p["original_name"] != p["name"] else ""
-            line += f"  from {src}{orig_name}{yam}"
-        print(line + marker)
+        print(f"{pos + 1:03d}  {names[orig]:<12}{marker}")
 
 
 def cmd_move(args):
-    provenance = load_provenance()
+    names = voice_names(load_packed_voices())
     order = load_order()
-    src_pos = find_preset(provenance, order, args.preset)
+    src_pos = find_preset(names, order, args.preset)
     dst_pos = args.to - 1
     if not (0 <= dst_pos <= 127):
         raise SystemExit("--to must be 1-128")
-    name = provenance[order[src_pos]]["name"]
+    name = names[order[src_pos]]
     orig = order.pop(src_pos)
     order.insert(dst_pos, orig)
     save_order(order)
@@ -157,7 +144,7 @@ def cmd_move(args):
 
 
 def cmd_reorder(args):
-    provenance = load_provenance()
+    names = voice_names(load_packed_voices())
     order = load_order()
     with open(args.file) as f:
         wanted_names_or_nums = [line.strip() for line in f if line.strip()]
@@ -165,7 +152,7 @@ def cmd_reorder(args):
         raise SystemExit(f"{args.file} must list all 128 presets, one per line; found {len(wanted_names_or_nums)}")
     new_order = []
     for entry in wanted_names_or_nums:
-        pos = find_preset(provenance, order, entry)
+        pos = find_preset(names, order, entry)
         new_order.append(order[pos])
     if sorted(new_order) != list(range(128)):
         raise SystemExit("That list doesn't contain each of the 128 presets exactly once.")
@@ -175,7 +162,7 @@ def cmd_reorder(args):
 
 def cmd_reset(args):
     save_order(list(range(128)))
-    print("Order reset to factory. Run `export` + `send` to push this back to the FM-1.")
+    print("Order reset to the banks/ file order. Run `export` + `send` to push this back to the FM-1.")
 
 
 def cmd_export(args):
@@ -226,11 +213,10 @@ def cmd_send(args):
 
 
 def build_parser():
-    p = argparse.ArgumentParser(description="List, reorder, and re-send the FM-1's factory soundbank.")
+    p = argparse.ArgumentParser(description="List, reorder, and re-send a 128-voice soundbank for the FM-1.")
     sub = p.add_subparsers(dest="command", required=True)
 
     p_list = sub.add_parser("list", help="Print all 128 presets in current order")
-    p_list.add_argument("--provenance", action="store_true", help="Also show where each voice came from")
     p_list.set_defaults(func=cmd_list)
 
     p_move = sub.add_parser("move", help="Move one preset to a new slot number")
@@ -242,7 +228,7 @@ def build_parser():
     p_reorder.add_argument("file", help="Path to a text file listing all 128 presets in the desired order")
     p_reorder.set_defaults(func=cmd_reorder)
 
-    p_reset = sub.add_parser("reset", help="Reset the working order back to factory")
+    p_reset = sub.add_parser("reset", help="Reset the working order back to the banks/ file order")
     p_reset.set_defaults(func=cmd_reset)
 
     p_export = sub.add_parser("export", help="Write the current order out as 4 DX7 bank .syx files")

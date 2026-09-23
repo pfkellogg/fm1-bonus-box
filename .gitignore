@@ -4,3 +4,9 @@ __pycache__/
 .DS_Store
 fm1_soundbank_app/state/
 fm1_soundbank_app/export/
+
+# Voice data is never committed: no soundbanks in this repo, licensed or not.
+*.syx
+*.SYX
+*_packed.bin
+fm1_soundbank_app/banks/
