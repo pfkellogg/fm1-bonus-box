@@ -42,7 +42,7 @@ def pin_right(ax, box_x, y, stub_len, name):
     return (x2, y)
 
 
-def resistor_h(ax, x1, y, length, label):
+def resistor_h(ax, x1, y, length, label, below=False):
     zz_len = length * 0.55
     lead = (length - zz_len) / 2
     x_start_zz = x1 + lead
@@ -56,7 +56,10 @@ def resistor_h(ax, x1, y, length, label):
     for i in range(n):
         line(ax, xs[i], ys[i], xs[i + 1], ys[i + 1])
     line(ax, x_start_zz + zz_len, y, x1 + length, y)
-    ax.text(x1 + length / 2, y + 0.55, label, ha='center', va='bottom', fontsize=FS_PIN)
+    if below:
+        ax.text(x1 + length / 2, y - 0.4, label, ha='center', va='top', fontsize=FS_PIN)
+    else:
+        ax.text(x1 + length / 2, y + 0.4, label, ha='center', va='bottom', fontsize=FS_PIN)
     return (x1 + length, y)
 
 
@@ -207,21 +210,28 @@ mj_r = pin_left(ax1, MJ_X, MIDI_RING_Y, 0.9, 'Ring')
 mj_s = pin_left(ax1, MJ_X, MIDI_SLEEVE_Y, 0.9, 'Sleeve')
 
 # GPIO4 -> R1 (220ohm) -> MIDI jack Tip (signal)
-r1_end = resistor_h(ax1, e_gpio4[0], e_gpio4[1], mj_t[0] - e_gpio4[0], 'R1\n220Ω')
+r1_end = resistor_h(ax1, e_gpio4[0], e_gpio4[1], mj_t[0] - e_gpio4[0], 'R1  220Ω')
 line(ax1, r1_end[0], r1_end[1], mj_t[0], mj_t[1])
 
 # 3V3 -> R2 (220ohm) -> MIDI jack Ring (current source, reduced vs. a 5V circuit)
-r2_end = resistor_h(ax1, e_3v3[0], e_3v3[1], mj_r[0] - e_3v3[0], 'R2\n220Ω')
+r2_end = resistor_h(ax1, e_3v3[0], e_3v3[1], mj_r[0] - e_3v3[0], 'R2  220Ω', below=True)
 line(ax1, r2_end[0], r2_end[1], mj_r[0], mj_r[1])
 
 # GND -> MIDI jack Sleeve (direct wire, no resistor)
 line(ax1, e_gnd_r[0], e_gnd_r[1], mj_s[0], mj_s[1])
-dot(ax1, e_gnd_r[0], e_gnd_r[1])
-line(ax1, e_gnd_r[0], e_gnd_r[1], e_gnd_r[0], GND_Y)
 
-# 3V3 pin also taps the 3V3 bus, so the encoder/TFT can draw from the same rail
-line(ax1, e_3v3[0], e_3v3[1], e_3v3[0], V3_Y)
-dot(ax1, e_3v3[0], e_3v3[1])
+# ESP32 3V3 and GND drop to their rails on SEPARATE x columns. (They used
+# to share one x, which drew 3V3 and GND on top of each other = looked
+# like a short.) 3V3 taps off R2's lead before the zigzag; GND taps off
+# the sleeve wire further right. Where one drop crosses the other's
+# horizontal wire there's no dot: a crossing, not a connection.
+ESP_V3_X, ESP_GND_X = e_3v3[0] + 0.3, e_gnd_r[0] + 0.8
+line(ax1, ESP_V3_X, e_3v3[1], ESP_V3_X, V3_Y)
+dot(ax1, ESP_V3_X, e_3v3[1])
+dot(ax1, ESP_V3_X, V3_Y)
+line(ax1, ESP_GND_X, e_gnd_r[1], ESP_GND_X, GND_Y)
+dot(ax1, ESP_GND_X, e_gnd_r[1])
+dot(ax1, ESP_GND_X, GND_Y)
 
 # --- Rotary encoder module (KY-040) — mid-right band ---
 KX, KW = 21.0, 2.8
@@ -238,10 +248,16 @@ line(ax1, e_clk[0], e_clk[1], k_clk[0], k_clk[1])
 line(ax1, e_dt[0], e_dt[1], k_dt[0], k_dt[1])
 line(ax1, e_sw[0], e_sw[1], k_sw[0], k_sw[1])
 
-line(ax1, k_vcc[0], k_vcc[1], k_vcc[0], V3_Y)
-dot(ax1, k_vcc[0], k_vcc[1])
-line(ax1, k_gnd[0], k_gnd[1], k_gnd[0], GND_Y)
-dot(ax1, k_gnd[0], k_gnd[1])
+# Encoder + TFT power: one shared 3V3 column and one shared GND column, at
+# different x, just left of the modules' pins. (Dropping each pin straight
+# down from its own pin end put 3V3 and GND pins on the same vertical line.)
+MOD_V3_X, MOD_GND_X = k_vcc[0] - 0.9, k_vcc[0] - 0.4
+line(ax1, k_vcc[0], k_vcc[1], MOD_V3_X, k_vcc[1])
+line(ax1, MOD_V3_X, k_vcc[1], MOD_V3_X, V3_Y)
+dot(ax1, MOD_V3_X, V3_Y)
+line(ax1, k_gnd[0], k_gnd[1], MOD_GND_X, k_gnd[1])
+line(ax1, MOD_GND_X, k_gnd[1], MOD_GND_X, GND_Y)
+dot(ax1, MOD_GND_X, GND_Y)
 
 # --- 1.28" round TFT (GC9A01, SPI) — bottom-right band ---
 TX_, TW = 21.0, 2.8
@@ -264,12 +280,11 @@ line(ax1, e_sck[0], e_sck[1], t_sck[0], t_sck[1])
 line(ax1, e_mosi[0], e_mosi[1], t_mosi[0], t_mosi[1])
 
 # VCC + BLK both tie straight to the 3V3 rail (backlight always-on, no PWM dimming)
-line(ax1, t_vcc[0], t_vcc[1], t_vcc[0], V3_Y)
-dot(ax1, t_vcc[0], t_vcc[1])
-line(ax1, t_blk[0], t_blk[1], t_blk[0], V3_Y)
-dot(ax1, t_blk[0], t_blk[1])
-line(ax1, t_gnd[0], t_gnd[1], t_gnd[0], GND_Y)
-dot(ax1, t_gnd[0], t_gnd[1])
+for p in (t_vcc, t_blk):  # joins the shared 3V3 column (crosses the GND column, no dot)
+    line(ax1, p[0], p[1], MOD_V3_X, p[1])
+    dot(ax1, MOD_V3_X, p[1])
+line(ax1, t_gnd[0], t_gnd[1], MOD_GND_X, t_gnd[1])
+dot(ax1, MOD_GND_X, t_gnd[1])
 
 notes1 = (
     "Notes:\n"
@@ -293,7 +308,7 @@ notes1 = (
     "  reorder and send your own .syx banks (none are included)\n"
     "• Mic: the MAX9814 module's own onboard electret mic, facing a hole in the front panel, away from the FM-1's speaker. GAIN unconnected = 60dB max\n"
     "  (tie GAIN to GND for 50dB if room noise registers). OUT sits at ~1.25V DC and must go to an ADC1 pin (GPIO1) -- ADC2 stops working with WiFi on\n"
-    "• SING button toggles sing-on-key mode (tap) and cycles SONG/DRILL/FREE note lists (hold 0.6s)"
+    "• SING button toggles sing-on-key mode (tap) and cycles SONG/PLAY/DRILL/FREE note lists (hold 0.6s)"
 )
 line(ax1, 0.5, V3_Y - 0.8, 28.0, V3_Y - 0.8, lw=0.8)
 ax1.lines[-1].set_linestyle('dashed')
