@@ -90,6 +90,17 @@ int playPos = 0;                  // last note started
 int playSounding = -1;            // MIDI note currently on, -1 = none
 unsigned long playOffAt = 0;      // song time its note-off is due
 
+// ---- Pitch stepper (web page's pad 3): one song step per press ----
+int stepPos = -1;                 // last step played, -1 = none yet
+int stepSounding = -1;            // MIDI note currently on, -1 = none
+unsigned long stepOffAt = 0;      // millis() its note-off is due
+unsigned long stepAt = 0;         // millis() of the last step
+
+// ---- Lyric screen (WiFi mode, while the page's pads play) ----
+static const unsigned long LYRIC_HOLD_MS = 4000;  // keep a stepped lyric up this long after the tap
+int lyricShownStep = -1;          // step on screen, -1 = lyric screen not showing
+int lyricShownNote = -1;          // playPos on screen while playing (the note line changes more often than the lyric)
+
 // ---- Sing state ----
 bool singMode = false;
 SingList singList = LIST_FREE;
@@ -178,6 +189,8 @@ const char *parseSong(const uint8_t *buf, size_t len) {
   }
 
   songPlayStop();  // the old song's notes are about to be overwritten
+  songStepOff();
+  stepPos = -1;
   playCount = pCount;
   for (int i = 0; i < pCount; i++) {
     const uint8_t *p = pb + i * PLAY_NOTE_BYTES;
@@ -205,6 +218,8 @@ const char *parseSong(const uint8_t *buf, size_t len) {
 
 void loadSong() {
   songPlayStop();
+  songStepOff();
+  stepPos = -1;
   songCount = 0;
   playCount = 0;
   drillCount = 0;
@@ -277,6 +292,7 @@ void playNoteOff() {
 // when done (sing mode handles the program itself).
 void songPlayStart(int pos, bool fromWeb) {
   songPlayStop();
+  songStepOff();
   if (playCount == 0) return;
   pos = constrain(pos, 0, playCount - 1);
   if (fromWeb) {
@@ -300,8 +316,114 @@ void songPlayStop() {
   playRestoreProgram = false;
 }
 
+void songStepOff() {
+  if (stepSounding < 0) return;
+  midiNoteOff((uint8_t)stepSounding);
+  stepSounding = -1;
+  midiProgramChange((uint8_t)playingIndex);
+}
+
+// Plays the song's next step (one pitch, repeats merged) for REF_MS in the
+// reference voice, wrapping to the first after the last. Stops playback.
+void songStepNext() {
+  songPlayStop();
+  songStepOff();
+  if (songCount == 0) return;
+  stepPos = (stepPos + 1) % songCount;
+  int ref = findReferenceVoice();
+  if (ref >= 0) midiProgramChange((uint8_t)ref);
+  midiControlChange(64, 0);
+  stepSounding = songSteps[stepPos].note;
+  midiNoteOn((uint8_t)stepSounding, REF_VELOCITY);
+  stepAt = millis();
+  stepOffAt = stepAt + REF_MS;
+}
+
+// {"pos":4,"count":151,"note":64,"lyric":"sa"} — the step just played.
+String songStepJson() {
+  if (stepPos < 0) return "{}";
+  String j = String("{\"pos\":") + stepPos + ",\"count\":" + songCount + ",\"note\":" + songSteps[stepPos].note + ",\"lyric\":\"";
+  for (const char *c = songSteps[stepPos].lyric; *c; c++) {
+    if (*c == '"' || *c == '\\') j += '\\';
+    j += *c;
+  }
+  return j + "\"}";
+}
+
+// ---------------------------------------------------------------------
+// Lyric screen — shown in WiFi mode while pad 1 plays or pad 3 steps
+// ---------------------------------------------------------------------
+
+// Step whose lyric belongs on screen now, -1 = none.
+int lyricStepNow() {
+  if (playing) return playNotes[playPos].step;
+  if (stepPos >= 0 && millis() - stepAt < LYRIC_HOLD_MS) return stepPos;
+  return -1;
+}
+
+// Many steps carry no lyric (a syllable held over several pitches), so
+// "current" is the last lyric at or before the step; prev/next skip blanks.
+int lyricAtOrBefore(int step) {
+  for (int i = step; i >= 0; i--) if (songSteps[i].lyric[0]) return i;
+  return -1;
+}
+int lyricAfter(int step) {
+  for (int i = step + 1; i < songCount; i++) if (songSteps[i].lyric[0]) return i;
+  return -1;
+}
+
+// Top lines: position + note name.
+void drawLyricNote(int step) {
+  lyricShownNote = playing ? playPos : -1;
+  tft.fillRect(40, 30, 160, 44, SING_BG);
+  char line[32], note[8];
+  uint8_t n = playing ? playNotes[playPos].note : songSteps[step].note;
+  if (playing) snprintf(line, sizeof(line), "NOTE %d/%d", playPos + 1, playCount);
+  else snprintf(line, sizeof(line), "PITCH %d/%d", step + 1, songCount);
+  printCentered(40, line, 1, COL_GRAY);
+  noteLabel(n, note, sizeof(note));
+  printCentered(62, note, 2, GC9A01A_YELLOW);
+}
+
+void drawLyricScreen(int step) {
+  lyricShownStep = step;
+  tft.fillScreen(SING_BG);
+  drawLyricNote(step);
+
+  char line[32];
+  int cur = lyricAtOrBefore(step);
+  int prev = cur > 0 ? lyricAtOrBefore(cur - 1) : -1;
+  int next = lyricAfter(step);
+  if (prev >= 0) printCentered(92, songSteps[prev].lyric, 2, COL_GRAY);
+  printCentered(125, cur >= 0 ? songSteps[cur].lyric : "~", 3, GC9A01A_WHITE);
+  if (next >= 0) printCentered(160, songSteps[next].lyric, 2, COL_GRAY);
+
+  snprintf(line, sizeof(line), "%.28s", songName);
+  printCentered(192, line, 1, COL_GRAY);
+}
+
+// For drawScreen() in WiFi mode: draws the lyric screen and returns true
+// if one belongs up now, else false (draw the normal WiFi screen).
+bool lyricScreenDraw() {
+  int s = lyricStepNow();
+  if (s < 0) {
+    lyricShownStep = -1;
+    return false;
+  }
+  drawLyricScreen(s);
+  return true;
+}
+
+// WiFi mode: redraw when the lyric changes, or when it should go away.
+void songLyricLoop() {
+  int s = lyricStepNow();
+  if (s != lyricShownStep) drawScreen();
+  else if (s >= 0 && playing && playPos != lyricShownNote) drawLyricNote(s);
+}
+
 // Called every loop() pass, in any mode.
 void songPlayLoop() {
+  if (stepSounding >= 0 && (long)(millis() - stepOffAt) >= 0) songStepOff();
   if (!playing) return;
   long t = (long)millis() - playT0;
   if (playSounding >= 0 && t >= (long)playOffAt) playNoteOff();
@@ -321,6 +443,20 @@ void songPlayLoop() {
 
 bool songPlaying() { return playing; }
 bool songHasVocalTrack() { return playCount > 0; }
+
+// {"playing":true,"pos":12,"count":230,"note":65,"lyric":"me"} for the web page's pads.
+String songPlayStateJson() {
+  String j = String("{\"playing\":") + (playing ? "true" : "false");
+  if (playing) {
+    j += String(",\"pos\":") + playPos + ",\"count\":" + playCount + ",\"note\":" + playNotes[playPos].note + ",\"lyric\":\"";
+    for (const char *c = songSteps[playNotes[playPos].step].lyric; *c; c++) {
+      if (*c == '"' || *c == '\\') j += '\\';
+      j += *c;
+    }
+    j += '"';
+  }
+  return j + "}";
+}
 
 // ---------------------------------------------------------------------
 // Reference note + scoring

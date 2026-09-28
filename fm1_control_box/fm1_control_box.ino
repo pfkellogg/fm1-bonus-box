@@ -371,6 +371,8 @@ void assignPresetToSlotOne(int targetSlot) {
 //   POST /send?q=N   sends quarter N (0-3) to the FM-1 over MIDI
 //   GET  /song.bin, POST /song   the sing-mode song (see sing_mode.ino)
 //   POST /play, /stop            play the song's vocal track on the FM-1
+//   GET  /playstate              JSON: playing, note position, lyric (for the page's pads)
+//   POST /step                   play the song's next pitch for 1s; JSON of that step
 // All .syx parsing, loading and reordering happens in the browser; the box
 // only stores and sends the result.
 // ---------------------------------------------------------------------
@@ -485,11 +487,27 @@ void handlePlay() {
   server.send(200, "text/plain", "Playing on the FM-1.");
 }
 
+void handleStep() {
+  if (!songStepCount()) {
+    server.send(409, "text/plain", "No song on the box.");
+    return;
+  }
+  songStepNext();
+  server.sendHeader("Cache-Control", "no-store");
+  server.send(200, "application/json", songStepJson());
+}
+
 void handleStop() {
   songPlayStop();
+  songStepOff();
   wifiStatusLine = "Stopped";
   drawScreen();
   server.send(200, "text/plain", "Stopped.");
+}
+
+void handlePlayState() {
+  server.sendHeader("Cache-Control", "no-store");
+  server.send(200, "application/json", songPlayStateJson());
 }
 
 void enterWifiMode() {
@@ -505,12 +523,15 @@ void enterWifiMode() {
   server.on("/song", HTTP_POST, handleSongUploadDone, handleUploadData);
   server.on("/play", HTTP_POST, handlePlay);
   server.on("/stop", HTTP_POST, handleStop);
+  server.on("/playstate", HTTP_GET, handlePlayState);
+  server.on("/step", HTTP_POST, handleStep);
   server.begin();
   drawScreen();
 }
 
 void exitWifiMode() {
   songPlayStop();
+  songStepOff();
   server.stop();
   WiFi.softAPdisconnect(true);
   WiFi.mode(WIFI_OFF);
@@ -558,7 +579,7 @@ void drawWifiScreen() {
 
 void drawScreen() {
   if (wifiModeActive) {
-    drawWifiScreen();
+    if (!lyricScreenDraw()) drawWifiScreen();
     return;
   }
   if (singActive()) {
@@ -666,6 +687,7 @@ void loop() {
     server.handleClient();
   }
   songPlayLoop();
+  if (wifiModeActive) songLyricLoop();
 
   // --- Sustain pedal/button ---
   bool pressed = (digitalRead(PIN_SUSTAIN) == LOW);

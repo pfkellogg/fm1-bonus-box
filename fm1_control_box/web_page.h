@@ -54,6 +54,21 @@ select{font:inherit;padding:8px;border-radius:8px;border:1px solid var(--line);b
 #sendbox{display:none;margin-top:8px;padding:10px;border-radius:8px;background:var(--sel)}
 input[type=file]{display:none}
 a{color:var(--accent)}
+.pads{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;margin-top:10px;padding:10px;border-radius:10px;background:#26262a}
+@media (max-width:460px){.pads{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.pad{aspect-ratio:1;min-width:0;padding:4px;border-radius:8px;border:1px solid #3c3c42;background:#34343a;color:#8d8d95;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;box-shadow:inset 0 -3px rgba(0,0,0,.35)}
+.pad:disabled{opacity:1;cursor:default}
+.pad .pn{font-size:9px;letter-spacing:.06em}
+.pad .pi{font-size:20px;line-height:1}
+.pad .pl{font-weight:600}
+.pad.play:not(:disabled){background:#1f5130;border-color:#2f7a48;color:#d9fbe4;cursor:pointer}
+.pad.stop:not(:disabled){background:#5a2323;border-color:#8a3434;color:#ffe0e0;cursor:pointer}
+.pad.step:not(:disabled){background:#1e3a5f;border-color:#2f5d95;color:#dbeafe;cursor:pointer}
+.pad.step.lit{background:#3b82f6;border-color:#93c5fd;color:#051a3a;box-shadow:0 0 14px #3b82f6}
+.pad.play.lit{background:#22c55e;border-color:#86efac;color:#062611;box-shadow:0 0 14px #22c55e}
+.pad:not(:disabled):active{transform:translateY(1px);box-shadow:none}
+.pad.play:disabled,.pad.stop:disabled,.pad.step:disabled{opacity:.45}
+.now{min-height:1.4em;margin:8px 0 0;font-family:ui-monospace,Menlo,monospace;font-size:14px}
 </style></head>
 <body><main>
 <h1>FM-1 Soundbank</h1>
@@ -63,7 +78,19 @@ a{color:var(--accent)}
 <h2>Song to sing (sing mode)</h2>
 <p class="muted" id="songOnBox">Checking the box&hellip;</p>
 <div class="row"><button class="primary" id="songFindBtn">Upload song (.kar / .mid)&hellip;</button><button id="songRemoveBtn" disabled>Remove song from box</button></div>
-<div class="row" style="margin-top:8px"><button id="playBtn" disabled>&#9654; Play vocal track on FM-1</button><button id="stopBtn" disabled>&#9632; Stop</button></div>
+<div class="pads" id="pads" aria-label="Minilab3 pads">
+<button class="pad play" id="playBtn" disabled><span class="pn">PAD 1</span><span class="pi">&#9654;</span><span class="pl">Play</span></button>
+<button class="pad stop" id="stopBtn" disabled><span class="pn">PAD 2</span><span class="pi">&#9632;</span><span class="pl">Stop</span></button>
+<button class="pad step" id="stepBtn" disabled><span class="pn">PAD 3</span><span class="pi">&#9197;</span><span class="pl">Next pitch</span></button>
+<button class="pad" disabled><span class="pn">PAD 4</span></button>
+<button class="pad" disabled><span class="pn">PAD 5</span></button><button class="pad" disabled><span class="pn">PAD 6</span></button>
+<button class="pad" disabled><span class="pn">PAD 7</span></button><button class="pad" disabled><span class="pn">PAD 8</span></button>
+</div>
+<p class="now" id="nowPlaying"></p>
+<details class="muted"><summary>How the pads work</summary>
+<p><b>Pad 1 &#9654;</b> plays the song's vocal track on the FM-1 from the first sung note, in the DOO / voice preset. Tap it again to restart from the top. <b>Pad 2 &#9632;</b> stops it and silences the FM-1. <b>Pad 3 &#9197;</b> steps through the song one pitch at a time: each tap plays the next pitch for 1 second with its lyric (repeated notes of the same pitch count as one), and wraps to the start after the last. Pads 4&ndash;8 aren't used.</p>
+<p>These are the same pads as on an Arturia Minilab3. With the Minilab3 and FM-1 plugged into a computer, a pad-player script there does the same thing from the real pads. The box itself has no MIDI input, so here you tap them on screen.</p>
+</details>
 <input type="file" id="songInput">
 <div id="songSetup" style="display:none;margin-top:10px">
 <div class="row"><span>Melody</span><select id="partSel" style="max-width:100%"></select></div>
@@ -662,8 +689,26 @@ $('songRemoveBtn').onclick = async () => {
 function showSongOnBox(name, count, timed = count > 0) {
   $('songOnBox').textContent = count ? 'On the box: "' + name + '" (' + count + ' notes)' + (timed ? '.' : '. Send it again to be able to play it.') : 'No song on the box yet. Sing mode uses the chromatic FREE list until you add one.';
   $('songRemoveBtn').disabled = !count;
-  $('playBtn').disabled = $('stopBtn').disabled = !timed;
+  $('playBtn').disabled = !timed;
+  $('stopBtn').disabled = $('stepBtn').disabled = !count;
 }
+
+// Pad 3: the box plays the next pitch for 1s and says which one it was.
+let stepLitTimer = 0;
+$('stepBtn').onclick = async () => {
+  try {
+    const r = await fetch('/step', { method: 'POST' });
+    if (!r.ok) throw new Error(await r.text());
+    const s = await r.json();
+    clearTimeout(pollTimer);
+    $('playBtn').classList.remove('lit');
+    $('stepBtn').classList.add('lit');
+    clearTimeout(stepLitTimer);
+    stepLitTimer = setTimeout(() => $('stepBtn').classList.remove('lit'), 1000);
+    $('nowPlaying').textContent = '♪ ' + noteLabel(s.note) + '  pitch ' + (s.pos + 1) + '/' + s.count + (s.lyric ? '  “' + s.lyric + '”' : '');
+    msg($('songMsg'), s.pos + 1 === s.count ? 'Last pitch; the next tap starts over.' : '');
+  } catch (err) { msg($('songMsg'), err.message, 'err'); }
+};
 
 async function postPlay(path, okText) {
   try {
@@ -672,9 +717,21 @@ async function postPlay(path, okText) {
     if (!r.ok) throw new Error(t);
     msg($('songMsg'), okText, 'ok');
   } catch (err) { msg($('songMsg'), err.message, 'err'); }
+  pollPlay();
 }
 $('playBtn').onclick = () => postPlay('/play', 'Playing the vocal track on the FM-1 in its DOO / voice preset. Sing along!');
 $('stopBtn').onclick = () => postPlay('/stop', 'Stopped.');
+
+// While playing, light pad 1 and show the current note + lyric.
+let pollTimer = 0;
+async function pollPlay() {
+  clearTimeout(pollTimer);
+  let s = { playing: false };
+  try { s = await (await fetch('/playstate', { cache: 'no-store' })).json(); } catch (err) {}
+  $('playBtn').classList.toggle('lit', s.playing);
+  $('nowPlaying').textContent = s.playing ? '♪ ' + noteLabel(s.note) + '  ' + (s.pos + 1) + '/' + s.count + (s.lyric ? '  “' + s.lyric + '”' : '') : '';
+  if (s.playing) pollTimer = setTimeout(pollPlay, 400);
+}
 
 fetch('/song.bin').then(r => r.arrayBuffer()).then(buf => {
   const b = new Uint8Array(buf);
@@ -683,6 +740,7 @@ fetch('/song.bin').then(r => r.arrayBuffer()).then(buf => {
     showSongOnBox(String.fromCharCode(...b.subarray(6, 38)).replace(/\0.*$/, ''), count, b.length > 38 + count * 12);
   } else showSongOnBox('', 0);
 }).catch(() => showSongOnBox('', 0));
+pollPlay();  // the song may already be playing (page reloaded mid-song)
 
 // ---- Start: pull the box's current bank ----
 fetch('/bank.bin').then(r => r.arrayBuffer()).then(buf => {
