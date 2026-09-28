@@ -276,7 +276,8 @@ bool bannerNeedsKnob = false;
 // ---- WiFi mode ----
 bool wifiModeActive = false;
 WebServer server(80);
-static uint8_t uploadBuf[BANK_BYTES];
+// Big enough for a bank (16KB) or the largest song file (~21KB: 1000 steps + 1000 timed notes).
+static uint8_t uploadBuf[24576];
 static size_t uploadLen = 0;
 static const char *WIFI_AP_SSID = "FM1-ControlBox";
 static const char *WIFI_AP_PASSWORD = "fm1setup1";  // 8+ chars required by softAP
@@ -368,6 +369,8 @@ void assignPresetToSlotOne(int targetSlot) {
 //   GET  /bank.bin   the box's 128-voice bank, raw 16384 bytes
 //   POST /bank       multipart upload, field "bank": 16384 bytes, replaces + saves it
 //   POST /send?q=N   sends quarter N (0-3) to the FM-1 over MIDI
+//   GET  /song.bin, POST /song   the sing-mode song (see sing_mode.ino)
+//   POST /play, /stop            play the song's vocal track on the FM-1
 // All .syx parsing, loading and reordering happens in the browser; the box
 // only stores and sends the result.
 // ---------------------------------------------------------------------
@@ -469,6 +472,26 @@ void handleSongUploadDone() {
   server.send(saved ? 200 : 500, "text/plain", saved ? "Song saved to the box." : "Song loaded, but couldn't write it to flash (lost at power-off).");
 }
 
+// POST /play[?from=N]: plays the stored song's vocal track on the FM-1 from
+// note N, in the reference ("doo") voice. POST /stop stops it.
+void handlePlay() {
+  if (!songHasVocalTrack()) {
+    server.send(409, "text/plain", "The song on the box has no timed vocal track. Send it again from this page.");
+    return;
+  }
+  songPlayStart(server.hasArg("from") ? server.arg("from").toInt() : 0, true);
+  wifiStatusLine = "Playing song";
+  drawScreen();
+  server.send(200, "text/plain", "Playing on the FM-1.");
+}
+
+void handleStop() {
+  songPlayStop();
+  wifiStatusLine = "Stopped";
+  drawScreen();
+  server.send(200, "text/plain", "Stopped.");
+}
+
 void enterWifiMode() {
   wifiModeActive = true;
   wifiStatusLine = "";
@@ -480,11 +503,14 @@ void enterWifiMode() {
   server.on("/send", HTTP_POST, handleSend);
   server.on("/song.bin", HTTP_GET, handleGetSong);
   server.on("/song", HTTP_POST, handleSongUploadDone, handleUploadData);
+  server.on("/play", HTTP_POST, handlePlay);
+  server.on("/stop", HTTP_POST, handleStop);
   server.begin();
   drawScreen();
 }
 
 void exitWifiMode() {
+  songPlayStop();
   server.stop();
   WiFi.softAPdisconnect(true);
   WiFi.mode(WIFI_OFF);
@@ -639,6 +665,7 @@ void loop() {
   if (wifiModeActive) {
     server.handleClient();
   }
+  songPlayLoop();
 
   // --- Sustain pedal/button ---
   bool pressed = (digitalRead(PIN_SUSTAIN) == LOW);

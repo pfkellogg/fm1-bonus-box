@@ -8,6 +8,11 @@
 //
 // Note lists (SING button hold cycles them):
 //   SONG  — the uploaded song's melody in order (repeated notes merged)
+//   PLAY  — the song's vocal track played in time on the FM-1, with
+//           lyrics, to sing along with (knob tap = pause/play, turning
+//           the knob jumps to a note and plays from there). No scoring:
+//           the mic hears the FM-1 too — use headphones on the FM-1 for a
+//           meaningful chart.
 //   DRILL — each distinct pitch in the song once, low to high
 //   FREE  — chromatic C2-C6, for practicing without a song
 //
@@ -15,11 +20,12 @@
 // hear the FM-1's own speaker and "hit" every note for you. While the
 // reference plays, the chart shows what the mic hears in gray.
 
-enum SingList { LIST_SONG, LIST_DRILL, LIST_FREE };
-static const char *const SING_LIST_NAMES[3] = {"SONG", "DRILL", "FREE"};
+enum SingList { LIST_SONG, LIST_PLAY, LIST_DRILL, LIST_FREE };
+static const int NUM_LISTS = 4;
+static const char *const SING_LIST_NAMES[NUM_LISTS] = {"SONG", "PLAY", "DRILL", "FREE"};
 
 struct DifficultySpec {
-  const char *name;
+  const char *name;  // short, to fit the round screen's top line
   float toleranceCents;
   unsigned long holdMs;
   bool anyOctave;    // accept the right note in any octave (e.g. a low voice singing a high melody)
@@ -27,8 +33,8 @@ struct DifficultySpec {
 };
 static const DifficultySpec DIFFICULTIES[3] = {
   {"EASY", 50, 300, true, 150},
-  {"MEDIUM", 25, 500, true, 100},
-  {"EXPERT", 10, 800, false, 50},
+  {"MED", 25, 500, true, 100},
+  {"EXP", 10, 800, false, 50},
 };
 
 static const unsigned long REF_MS = 1000;       // how long the reference note plays
@@ -41,11 +47,19 @@ static const int FREE_LOW = 36, FREE_HIGH = 84;  // C2-C6
 // ---- Song (uploaded from the web page as /song.bin) ----
 // File: "FM1S", uint16 LE step count, 32-byte name, then per step: MIDI
 // note (1 byte) + lyric (11 bytes, zero-padded).
+// Optional timed vocal track after that (older song files don't have it):
+// "FM1P", uint16 LE note count, then per note: MIDI note (1), step index
+// it belongs to (uint16 LE), start ms from song start (uint32 LE),
+// duration ms (uint16 LE).
 static const char *SONG_PATH = "/song.bin";
 static const int SONG_MAX_STEPS = 1000;
 static const int LYRIC_LEN = 11;
 static const int SONG_HEADER = 38;
 static const int SONG_STEP_BYTES = 1 + LYRIC_LEN;
+static const int PLAY_MAX_NOTES = 1000;
+static const int PLAY_HEADER = 6;
+static const int PLAY_NOTE_BYTES = 9;
+static const unsigned long PLAY_LEAD_MS = 400;  // pause before the first note, so you're ready
 
 struct SongStep {
   uint8_t note;
@@ -57,10 +71,29 @@ char songName[33] = "";
 uint8_t drillNotes[128];
 int drillCount = 0;
 
+struct PlayNote {
+  uint32_t startMs;
+  uint16_t durMs;
+  uint16_t step;
+  uint8_t note;
+};
+PlayNote playNotes[PLAY_MAX_NOTES];
+int playCount = 0;
+
+// ---- Song player (used by the PLAY list and the web page's Play button) ----
+bool playing = false;
+bool playFinished = false;
+bool playRestoreProgram = false;  // started from the web page: go back to playingIndex when done
+long playT0 = 0;                  // millis() at song time 0
+int playNext = 0;                 // next note to start
+int playPos = 0;                  // last note started
+int playSounding = -1;            // MIDI note currently on, -1 = none
+unsigned long playOffAt = 0;      // song time its note-off is due
+
 // ---- Sing state ----
 bool singMode = false;
 SingList singList = LIST_FREE;
-int singPos[3] = {0, 0, 60 - FREE_LOW};  // remembered position per list (FREE starts at middle C)
+int singPos[NUM_LISTS] = {0, 0, 0, 60 - FREE_LOW};  // remembered position per list (FREE starts at middle C)
 int difficulty = 1;                      // MEDIUM
 int refSlot = -1;                        // program used for the reference note; -1 = keep the current preset
 uint8_t targetNote = 60;
@@ -130,7 +163,30 @@ const char *parseSong(const uint8_t *buf, size_t len) {
   if (len < SONG_HEADER || memcmp(buf, "FM1S", 4) != 0) return "Not a song file.";
   int count = buf[4] | (buf[5] << 8);
   if (count > SONG_MAX_STEPS) return "Song has too many notes (max 1000).";
-  if (len != (size_t)(SONG_HEADER + count * SONG_STEP_BYTES)) return "Song file size doesn't match its note count.";
+  size_t stepsEnd = SONG_HEADER + count * SONG_STEP_BYTES;
+  int pCount = 0;
+  const uint8_t *pb = buf + stepsEnd + PLAY_HEADER;
+  if (len != stepsEnd) {
+    if (len < stepsEnd + PLAY_HEADER || memcmp(buf + stepsEnd, "FM1P", 4) != 0) return "Song file size doesn't match its note count.";
+    pCount = buf[stepsEnd + 4] | (buf[stepsEnd + 5] << 8);
+    if (pCount > PLAY_MAX_NOTES) return "Song's vocal track is too long (max 1000 notes).";
+    if (len != stepsEnd + PLAY_HEADER + pCount * PLAY_NOTE_BYTES) return "Song file's vocal track size doesn't match its note count.";
+    for (int i = 0; i < pCount; i++) {
+      const uint8_t *p = pb + i * PLAY_NOTE_BYTES;
+      if ((p[1] | (p[2] << 8)) >= count) return "Song file's vocal track points past its last step.";
+    }
+  }
+
+  songPlayStop();  // the old song's notes are about to be overwritten
+  playCount = pCount;
+  for (int i = 0; i < pCount; i++) {
+    const uint8_t *p = pb + i * PLAY_NOTE_BYTES;
+    playNotes[i].note = p[0] & 0x7F;
+    playNotes[i].step = p[1] | (p[2] << 8);
+    playNotes[i].startMs = (uint32_t)p[3] | ((uint32_t)p[4] << 8) | ((uint32_t)p[5] << 16) | ((uint32_t)p[6] << 24);
+    playNotes[i].durMs = p[7] | (p[8] << 8);
+  }
+  singPos[LIST_PLAY] = 0;
 
   memcpy(songName, buf + 6, 32);
   songName[32] = 0;
@@ -148,7 +204,9 @@ const char *parseSong(const uint8_t *buf, size_t len) {
 }
 
 void loadSong() {
+  songPlayStop();
   songCount = 0;
+  playCount = 0;
   drillCount = 0;
   songName[0] = 0;
   if (!fsMounted) return;
@@ -168,18 +226,22 @@ void loadSong() {
 
 int listLength(int list) {
   if (list == LIST_SONG) return songCount;
+  if (list == LIST_PLAY) return playCount;
   if (list == LIST_DRILL) return drillCount;
   return FREE_HIGH - FREE_LOW + 1;
 }
 
 uint8_t listNote(int list, int pos) {
   if (list == LIST_SONG) return songSteps[pos].note;
+  if (list == LIST_PLAY) return playNotes[pos].note;
   if (list == LIST_DRILL) return drillNotes[pos];
   return FREE_LOW + pos;
 }
 
 const char *currentLyric() {
-  return singList == LIST_SONG ? songSteps[singPos[LIST_SONG]].lyric : "";
+  if (singList == LIST_SONG) return songSteps[singPos[LIST_SONG]].lyric;
+  if (singList == LIST_PLAY) return songSteps[playNotes[singPos[LIST_PLAY]].step].lyric;
+  return "";
 }
 
 // Picks the voice in the box's bank that sounds most like a sung "doo",
@@ -198,6 +260,67 @@ int findReferenceVoice() {
   }
   return -1;
 }
+
+// ---------------------------------------------------------------------
+// Song player — the timed vocal track, one note at a time
+// ---------------------------------------------------------------------
+
+void playNoteOff() {
+  if (playSounding >= 0) {
+    midiNoteOff((uint8_t)playSounding);
+    playSounding = -1;
+  }
+}
+
+// Starts the vocal track from note `pos`. fromWeb: the web page's Play
+// button — switches to the reference voice and restores the browsed preset
+// when done (sing mode handles the program itself).
+void songPlayStart(int pos, bool fromWeb) {
+  songPlayStop();
+  if (playCount == 0) return;
+  pos = constrain(pos, 0, playCount - 1);
+  if (fromWeb) {
+    int ref = findReferenceVoice();
+    if (ref >= 0) midiProgramChange((uint8_t)ref);
+    playRestoreProgram = true;
+  }
+  midiControlChange(64, 0);  // a held sustain pedal would smear the melody
+  playNext = pos;
+  playPos = pos;
+  playT0 = (long)millis() + (long)PLAY_LEAD_MS - (long)playNotes[pos].startMs;
+  playFinished = false;
+  playing = true;
+}
+
+void songPlayStop() {
+  bool was = playing;
+  playing = false;
+  playNoteOff();
+  if (was && playRestoreProgram) midiProgramChange((uint8_t)playingIndex);
+  playRestoreProgram = false;
+}
+
+// Called every loop() pass, in any mode.
+void songPlayLoop() {
+  if (!playing) return;
+  long t = (long)millis() - playT0;
+  if (playSounding >= 0 && t >= (long)playOffAt) playNoteOff();
+  if (playNext < playCount && t >= (long)playNotes[playNext].startMs) {
+    const PlayNote &n = playNotes[playNext];
+    playNoteOff();
+    midiNoteOn(n.note, REF_VELOCITY);
+    playSounding = n.note;
+    playOffAt = n.startMs + n.durMs;
+    playPos = playNext++;
+  }
+  if (playNext >= playCount && playSounding < 0) {
+    songPlayStop();
+    playFinished = true;
+  }
+}
+
+bool songPlaying() { return playing; }
+bool songHasVocalTrack() { return playCount > 0; }
 
 // ---------------------------------------------------------------------
 // Reference note + scoring
@@ -226,9 +349,11 @@ void setSingPos(int pos) {
   pos = ((pos % len) + len) % len;
   singPos[singList] = pos;
   stopReference();  // note-off must use the old target
+  songPlayStop();
   targetNote = listNote(singList, pos);
   songDone = false;
-  playReference();
+  if (singList == LIST_PLAY) songPlayStart(pos, false);
+  else playReference();
   drawSingScreen();
 }
 
@@ -265,7 +390,7 @@ void processPitch(const PitchReading &r) {
     youCents = cents;
     pushHistory((int16_t)constrain(cents, -3000.0f, 3000.0f), referencePhase);
 
-    if (!referencePhase && !hitAt && !songDone && fabsf(cents) <= d.toleranceCents) {
+    if (!referencePhase && !hitAt && !songDone && singList != LIST_PLAY && fabsf(cents) <= d.toleranceCents) {
       if (!inTuneSince) inTuneSince = now;
       lastInTuneAt = now;
       if (now - inTuneSince >= d.holdMs) {
@@ -295,11 +420,11 @@ void drawSingHeader() {
   char line[32];
   int len = listLength(singList);
   if (len) {
-    snprintf(line, sizeof(line), "%s %d/%d  %s", SING_LIST_NAMES[singList], singPos[singList] + 1, len, DIFFICULTIES[difficulty].name);
+    snprintf(line, sizeof(line), "SING %s %d/%d %s", SING_LIST_NAMES[singList], singPos[singList] + 1, len, DIFFICULTIES[difficulty].name);
   } else {
-    snprintf(line, sizeof(line), "%s  %s", SING_LIST_NAMES[singList], DIFFICULTIES[difficulty].name);
+    snprintf(line, sizeof(line), "SING %s %s", SING_LIST_NAMES[singList], DIFFICULTIES[difficulty].name);
   }
-  printCentered(26, line, 1, GC9A01A_WHITE);
+  printCentered(28, line, 1, GC9A01A_WHITE);
 
   char note[8];
   noteLabel(targetNote, note, sizeof(note));
@@ -363,7 +488,11 @@ void drawSingInfo() {
   unsigned long now = millis();
   char line[32];
 
-  if (hitAt) {
+  if (singList == LIST_PLAY && songDone) {
+    c.fillScreen(0x0400);
+    canvasCentered(c, 14, "SONG DONE", 2, GC9A01A_WHITE);
+    canvasCentered(c, 38, "tap knob: play again", 1, GC9A01A_WHITE);
+  } else if (hitAt) {
     c.fillScreen(0x0400);
     canvasCentered(c, 14, "HIT!", 3, GC9A01A_WHITE);
     snprintf(line, sizeof(line), "hits: %d", hitCount);
@@ -396,10 +525,14 @@ void drawSingInfo() {
       c.fillRect(barX + 1, 36, (int)((barW - 2) * p), 3, COL_GOOD);
     }
 
-    char name[16] = "current voice";
-    if (refSlot >= 0) getVoiceName(refSlot, name, sizeof(name));
-    snprintf(line, sizeof(line), "ref: %s", name);
-    canvasCentered(c, 47, line, 1, COL_GRAY);
+    if (singList == LIST_PLAY) {
+      canvasCentered(c, 47, playing ? "playing - tap knob: pause" : "paused - tap knob: play", 1, COL_GRAY);
+    } else {
+      char name[16] = "current voice";
+      if (refSlot >= 0) getVoiceName(refSlot, name, sizeof(name));
+      snprintf(line, sizeof(line), "ref: %s", name);
+      canvasCentered(c, 47, line, 1, COL_GRAY);
+    }
   }
   tft.drawRGBBitmap(INFO_X, INFO_Y, c.getBuffer(), c.width(), c.height());
 }
@@ -421,7 +554,7 @@ void drawSingScreen() {
 
 void enterSingMode() {
   singMode = true;
-  if (songCount == 0 && singList != LIST_FREE) singList = LIST_FREE;
+  if (listLength(singList) == 0) singList = LIST_FREE;
   for (int i = 0; i < HIST; i++) histCents[i] = HIST_NONE;
   hitCount = 0;
   refSlot = findReferenceVoice();
@@ -431,6 +564,7 @@ void enterSingMode() {
 
 void exitSingMode() {
   stopReference();
+  songPlayStop();
   singMode = false;
   midiProgramChange((uint8_t)playingIndex);  // back to the preset you were on
   drawScreen();
@@ -438,7 +572,7 @@ void exitSingMode() {
 
 void singCycleList() {
   do {
-    singList = (SingList)((singList + 1) % 3);
+    singList = (SingList)((singList + 1) % NUM_LISTS);
   } while (listLength(singList) == 0);
   setSingPos(singPos[singList]);
 }
@@ -454,6 +588,13 @@ void singStep(int delta) {
 }
 
 void singReplay() {
+  if (singList == LIST_PLAY) {  // pause / play (from the top once the song is done)
+    if (playing) songPlayStop();
+    else songPlayStart(songDone ? 0 : singPos[LIST_PLAY], false);
+    songDone = false;
+    drawSingScreen();
+    return;
+  }
   songDone = false;
   playReference();
   drawSingLive();
@@ -462,6 +603,20 @@ void singReplay() {
 void singLoop() {
   unsigned long now = millis();
   if (refNoteOn && now - refStartedAt >= REF_MS) stopReference();
+
+  // PLAY list: follow the player (songPlayLoop runs from the main loop).
+  if (singList == LIST_PLAY) {
+    if (playPos != singPos[LIST_PLAY]) {
+      singPos[LIST_PLAY] = playPos;
+      targetNote = playNotes[playPos].note;
+      drawSingHeader();
+    }
+    if (playFinished && !songDone) {
+      playFinished = false;
+      songDone = true;
+      drawSingLive();
+    }
+  }
 
   PitchReading r = pitchLatest();
   if (r.seq != lastPitchSeq) {

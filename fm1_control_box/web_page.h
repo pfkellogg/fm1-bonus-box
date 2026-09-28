@@ -6,7 +6,8 @@
 // slots; also reading a .kar/.mid song and extracting its melody + lyrics
 // for sing mode. The box itself only stores the final 16KB bank (/bank.bin,
 // /bank), sends quarters to the FM-1 (/send?q=N), and stores the song
-// (/song.bin, /song — see sing_mode.ino for the format).
+// (/song.bin, /song — see sing_mode.ino for the format), and plays the
+// song's timed vocal track on the FM-1 (/play, /stop).
 
 #pragma once
 #include <Arduino.h>
@@ -62,6 +63,7 @@ a{color:var(--accent)}
 <h2>Song to sing (sing mode)</h2>
 <p class="muted" id="songOnBox">Checking the box&hellip;</p>
 <div class="row"><button class="primary" id="songFindBtn">Upload song (.kar / .mid)&hellip;</button><button id="songRemoveBtn" disabled>Remove song from box</button></div>
+<div class="row" style="margin-top:8px"><button id="playBtn" disabled>&#9654; Play vocal track on FM-1</button><button id="stopBtn" disabled>&#9632; Stop</button></div>
 <input type="file" id="songInput">
 <div id="songSetup" style="display:none;margin-top:10px">
 <div class="row"><span>Melody</span><select id="partSel" style="max-width:100%"></select></div>
@@ -432,7 +434,7 @@ function parseMidi(buf) {
   const ntrks = dv.getUint16(10), division = dv.getUint16(12);
   if (division & 0x8000) throw new Error('SMPTE-timed MIDI files aren\'t supported');
   let pos = 8 + dv.getUint32(4);
-  const notes = [], texts = [];
+  const notes = [], texts = [], tempos = [];
   for (let t = 0; t < ntrks && pos + 8 <= b.length; ) {
     const id = tag(pos), len = dv.getUint32(pos + 4);
     pos += 8;
@@ -440,6 +442,7 @@ function parseMidi(buf) {
     if (id === 'MTrk') {
       const p = { i: pos };
       let tick = 0, status = 0;
+      const open = new Map();  // "ch:note" -> notes still sounding
       while (p.i < end) {
         tick += readVar(b, p);
         let st = b[p.i];
@@ -447,6 +450,7 @@ function parseMidi(buf) {
         if (st === 0xFF) {
           const type = b[p.i++], l = readVar(b, p);
           if (type === 0x01 || type === 0x05) texts.push({ tick, type, txt: String.fromCharCode(...b.subarray(p.i, p.i + l)) });
+          if (type === 0x51 && l === 3) tempos.push({ tick, us: (b[p.i] << 16) | (b[p.i + 1] << 8) | b[p.i + 2] });
           p.i += l;
           if (type === 0x2F) break;
         } else if (st === 0xF0 || st === 0xF7) {
@@ -454,14 +458,40 @@ function parseMidi(buf) {
         } else {
           const hi = st & 0xF0, ch = st & 0x0F;
           const d1 = b[p.i++], d2 = (hi === 0xC0 || hi === 0xD0) ? 0 : b[p.i++];
-          if (hi === 0x90 && d2 > 0 && ch !== 9) notes.push({ track: t, ch, note: d1, tick });  // skip GM drums
+          if (ch === 9) continue;  // skip GM drums
+          const k = ch + ':' + d1;
+          if (hi === 0x90 && d2 > 0) {
+            const n = { track: t, ch, note: d1, tick, end: -1 };
+            notes.push(n);
+            if (!open.has(k)) open.set(k, []);
+            open.get(k).push(n);
+          } else if (hi === 0x80 || hi === 0x90) {
+            const q = open.get(k);
+            if (q && q.length) q.shift().end = tick;
+          }
         }
       }
       t++;
     }
     pos = end;
   }
-  return { notes, texts, division };
+  tempos.sort((a, b) => a.tick - b.tick);
+  return { notes, texts, division, tempos };
+}
+
+// Tick -> milliseconds, following the file's tempo changes (120 BPM until the first one).
+function tickClock(tempos, division) {
+  const segs = [{ tick: 0, ms: 0, us: 500000 }];
+  for (const tp of tempos) {
+    const s = segs[segs.length - 1];
+    const ms = s.ms + (tp.tick - s.tick) * s.us / division / 1000;
+    if (tp.tick === s.tick) s.us = tp.us; else segs.push({ tick: tp.tick, ms, us: tp.us });
+  }
+  return tick => {
+    let s = segs[0];
+    for (const x of segs) { if (x.tick <= tick) s = x; else break; }
+    return s.ms + (tick - s.tick) * s.us / division / 1000;
+  };
 }
 
 // First index in sorted `arr` with value >= x.
@@ -472,7 +502,7 @@ function lowerBound(arr, x) {
 }
 
 function analyzeMidi(buf, fileName) {
-  const { notes, texts, division } = parseMidi(buf);
+  const { notes, texts, division, tempos } = parseMidi(buf);
   if (!notes.length) throw new Error('no notes found');
   // .kar puts lyrics in text events (with @-prefixed headers); plain MIDI uses lyric events.
   const lyricEvents = texts.filter(e => e.type === 0x05);
@@ -507,27 +537,35 @@ function analyzeMidi(buf, fileName) {
     pt.score = pt.lyricMatch * 1000 + Math.min(onsets.length, 400) * mono * vocal;
     return pt;
   }).sort((a, b) => b.score - a.score);
-  return { parts, lyrics, tol, title };
+  return { parts, lyrics, tol, title, toMs: tickClock(tempos, division) };
 }
 
 // Melody of one part: highest note at each onset, lyrics attached,
 // repeated pitches merged into one step (their lyrics joined).
+// Also returns `play`: every onset unmerged, timed in ms, for playback.
 function buildSteps(part, transpose) {
   const top = new Map();
-  for (const n of part.notes) top.set(n.tick, Math.max(top.get(n.tick) ?? -1, n.note));
+  for (const n of part.notes) { const o = top.get(n.tick); if (!o || n.note > o.note) top.set(n.tick, n); }
   const ticks = [...top.keys()].sort((a, b) => a - b);
-  const steps = ticks.map(t => ({ note: Math.min(127, Math.max(0, top.get(t) + transpose)), lyric: '' }));
+  const steps = ticks.map(t => ({ note: Math.min(127, Math.max(0, top.get(t).note + transpose)), lyric: '' }));
   for (const l of midi.lyrics) {
     const k = lowerBound(ticks, l.tick - midi.tol);
     if (k < steps.length) steps[k].lyric += l.txt;
   }
-  const merged = [];
-  for (const st of steps) {
+  const merged = [], play = [];
+  steps.forEach((st, i) => {
     const last = merged[merged.length - 1];
     if (last && last.note === st.note) last.lyric += st.lyric; else merged.push({ ...st });
-  }
+    const t = ticks[i], n = top.get(t), next = ticks[i + 1];
+    let endTick = n.end > t ? n.end : (next ?? t + midi.tol * 8);
+    if (next !== undefined) endTick = Math.min(endTick, next);  // one note at a time
+    const start = Math.round(midi.toMs(t));
+    play.push({ note: st.note, step: merged.length - 1, start, dur: Math.max(20, Math.min(65535, Math.round(midi.toMs(endTick)) - start)) });
+  });
   for (const st of merged) st.lyric = st.lyric.replace(/\s+/g, ' ').trim();
-  return merged;
+  const t0 = play.length ? play[0].start : 0;  // skip the intro before the first sung note
+  for (const p of play) p.start -= t0;
+  return { steps: merged, play };
 }
 
 function asciiBytes(str, len) {
@@ -537,13 +575,14 @@ function asciiBytes(str, len) {
 }
 
 function songPreview() {
-  const part = midi.parts[+$('partSel').value], steps = buildSteps(part, +$('transSel').value);
+  const part = midi.parts[+$('partSel').value], { steps, play } = buildSteps(part, +$('transSel').value);
   const notes = steps.map(s => s.note), distinct = new Set(notes).size;
   const lo = Math.min(...notes), hi = Math.max(...notes);
   const start = steps.slice(0, 10).map(s => noteLabel(s.note) + (s.lyric ? ' ' + s.lyric : '')).join(' \u00b7 ');
+  const secs = play.length ? Math.round((play[play.length - 1].start + play[play.length - 1].dur) / 1000) : 0;
   $('songPreview').textContent = steps.length + ' notes' + (steps.length > MAX_STEPS ? ' (only the first ' + MAX_STEPS + ' will be sent)' : '') +
-    ', range ' + noteLabel(lo) + '\u2013' + noteLabel(hi) + ', ' + distinct + ' distinct pitches. Starts: ' + start;
-  return steps.slice(0, MAX_STEPS);
+    ', range ' + noteLabel(lo) + '\u2013' + noteLabel(hi) + ', ' + distinct + ' distinct pitches, sung part ' + Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0') + '. Starts: ' + start;
+  return { steps: steps.slice(0, MAX_STEPS), play: play.filter(p => p.step < MAX_STEPS).slice(0, MAX_STEPS) };
 }
 
 $('songFindBtn').onclick = () => $('songInput').click();
@@ -590,13 +629,25 @@ async function postSong(bytes) {
 }
 
 $('songSendBtn').onclick = async () => {
-  const steps = songPreview();
-  const out = new Uint8Array(38 + steps.length * 12);
+  const { steps, play } = songPreview();
+  const pAt = 38 + steps.length * 12;
+  const out = new Uint8Array(pAt + 6 + play.length * 9);
   out.set([70, 77, 49, 83], 0);  // "FM1S"
   out[4] = steps.length & 0xFF;
   out[5] = steps.length >> 8;
   out.set(asciiBytes(midi.title, 32), 6);
   steps.forEach((s, i) => { out[38 + i * 12] = s.note; out.set(asciiBytes(s.lyric, LYRIC_LEN), 39 + i * 12); });
+  // Timed vocal track for playback: "FM1P", count, then note, step, start ms (u32), duration ms (u16).
+  const dv = new DataView(out.buffer);
+  out.set([70, 77, 49, 80], pAt);
+  dv.setUint16(pAt + 4, play.length, true);
+  play.forEach((p, i) => {
+    const o = pAt + 6 + i * 9;
+    out[o] = p.note;
+    dv.setUint16(o + 1, p.step, true);
+    dv.setUint32(o + 3, p.start, true);
+    dv.setUint16(o + 7, p.dur, true);
+  });
   $('songSendBtn').disabled = true;
   try { msg($('songMsg'), await postSong(out), 'ok'); showSongOnBox(midi.title, steps.length); }
   catch (err) { msg($('songMsg'), 'Sending the song failed: ' + err.message, 'err'); }
@@ -608,15 +659,28 @@ $('songRemoveBtn').onclick = async () => {
   catch (err) { msg($('songMsg'), 'Removing the song failed: ' + err.message, 'err'); }
 };
 
-function showSongOnBox(name, count) {
-  $('songOnBox').textContent = count ? 'On the box: "' + name + '" (' + count + ' notes).' : 'No song on the box yet. Sing mode uses the chromatic FREE list until you add one.';
+function showSongOnBox(name, count, timed = count > 0) {
+  $('songOnBox').textContent = count ? 'On the box: "' + name + '" (' + count + ' notes)' + (timed ? '.' : '. Send it again to be able to play it.') : 'No song on the box yet. Sing mode uses the chromatic FREE list until you add one.';
   $('songRemoveBtn').disabled = !count;
+  $('playBtn').disabled = $('stopBtn').disabled = !timed;
 }
+
+async function postPlay(path, okText) {
+  try {
+    const r = await fetch(path, { method: 'POST' });
+    const t = await r.text();
+    if (!r.ok) throw new Error(t);
+    msg($('songMsg'), okText, 'ok');
+  } catch (err) { msg($('songMsg'), err.message, 'err'); }
+}
+$('playBtn').onclick = () => postPlay('/play', 'Playing the vocal track on the FM-1 in its DOO / voice preset. Sing along!');
+$('stopBtn').onclick = () => postPlay('/stop', 'Stopped.');
 
 fetch('/song.bin').then(r => r.arrayBuffer()).then(buf => {
   const b = new Uint8Array(buf);
   if (b.length >= 38 && String.fromCharCode(b[0], b[1], b[2], b[3]) === 'FM1S') {
-    showSongOnBox(String.fromCharCode(...b.subarray(6, 38)).replace(/\0.*$/, ''), b[4] | (b[5] << 8));
+    const count = b[4] | (b[5] << 8);
+    showSongOnBox(String.fromCharCode(...b.subarray(6, 38)).replace(/\0.*$/, ''), count, b.length > 38 + count * 12);
   } else showSongOnBox('', 0);
 }).catch(() => showSongOnBox('', 0));
 

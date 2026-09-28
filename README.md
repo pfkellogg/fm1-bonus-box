@@ -56,10 +56,11 @@ For learning to sing in tune. Tap SING: the box switches the FM-1 to a vocal "do
 
 **The reference note stops before you sing** on purpose — otherwise the mic hears the FM-1's own speaker and "hits" every note for you. While the reference is playing, the chart plots what the mic hears in gray, so you can see what the target looks like.
 
-**Screen** (round TFT): top — note list, position, difficulty; the **target note** (name + octave) with its **frequency** and, for a song, the lyric; middle — the **pitch chart** (last ~3 seconds, green inside the tolerance band, orange near, red far; center line = on key); bottom — the **note you're singing** (name + octave), cents off, your **frequency**, a hold-progress bar, and which FM-1 voice is the reference.
+**Screen** (round TFT): dark navy background; top line — `SING`, note list, position, difficulty (e.g. `SING SONG 12/48 MED`; the screen abbreviates MEDIUM/EXPERT to MED/EXP); the **target note** (name + octave) with its **frequency** and, for a song, the lyric; middle — the **pitch chart** (last ~3 seconds, green inside the tolerance band, orange near, red far; center line = on key); bottom — the **note you're singing** (name + octave), cents off, your **frequency**, a hold-progress bar, and which FM-1 voice is the reference.
 
 **Note lists** (hold SING 0.6s to cycle):
 - **SONG** — the uploaded song's melody in order (repeated same-pitch notes merged into one step, lyrics shown). Stops at "SONG DONE" after the last note.
+- **PLAY** — the song's vocal track played in time on the FM-1 in the "doo" voice, with lyrics, to sing along with (starts at the first sung note, skipping the intro). Tap the encoder to pause/play; turn it to jump to a note and play from there. No scoring: the mic hears the FM-1 too, so the chart only means something with headphones on the FM-1. Needs a song sent from the current web page (older song files have no timing).
 - **DRILL** — every distinct pitch in the song once, low to high, for practicing the hard ones.
 - **FREE** — chromatic C2-C6, available with no song loaded.
 
@@ -78,15 +79,15 @@ For learning to sing in tune. Tap SING: the box switches the FM-1 to a vocal "do
 | Action | Result |
 |---|---|
 | Turn encoder | Previous / next note in the list (plays it) |
-| Tap encoder | Replay the reference note |
+| Tap encoder | Replay the reference note (PLAY: pause / play) |
 | Medium-press encoder | Cycle EASY → MEDIUM → EXPERT |
 | Long-press encoder (3s) | WiFi mode (leaves sing mode) |
 | Tap SING | Leave sing mode (FM-1 goes back to the preset you were on) |
-| Hold SING 0.6s | Cycle SONG → DRILL → FREE |
+| Hold SING 0.6s | Cycle SONG → PLAY → DRILL → FREE |
 
-**Uploading a song:** on the WiFi page, **Upload song (.kar / .mid)…**. The page reads the file, lists every part (track + channel, drums excluded), and preselects the melody — for `.kar` files, the part whose notes line up with the lyrics; otherwise the busiest one-note-at-a-time part in singing range. Pick another part if the guess is wrong, transpose ±12 semitones if needed, check the preview (note count, range, first notes with lyrics), and **Send song to box**. Up to 1000 notes; lyrics are kept (11 characters per note). The box stores one song; **Remove song from box** clears it.
+**Uploading a song:** on the WiFi page, **Upload song (.kar / .mid)…**. The page reads the file, lists every part (track + channel, drums excluded), and preselects the melody — for `.kar` files, the part whose notes line up with the lyrics; otherwise the busiest one-note-at-a-time part in singing range. Pick another part if the guess is wrong, transpose ±12 semitones if needed, check the preview (note count, range, first notes with lyrics), and **Send song to box**. Up to 1000 notes; lyrics are kept (11 characters per note). The box stores one song; **Remove song from box** clears it. **▶ Play vocal track on FM-1** plays the stored song's melody on the FM-1 right from the page (in the "doo" voice, then back to your preset when it ends); **■ Stop** stops it.
 
-**The "doo" reference voice:** the box searches its own bank by voice name — `DOO` first, then `OOH`, `VOX`, `VOICE`, `CHOIR`, `AAH`, `HUM`, `SING` — and uses the first match (or just the current preset if none). For a guaranteed vocal sound, select a slot on the WiFi page and press **Put DOO voice in selected slot**: it inserts this project's own `DOO VOICE` patch (written from scratch for this project, CC0 — see `tools/doo_voice.py`). **Then Save and Send that bank** — the box can only program-change to a voice the FM-1 actually has. The patch hasn't been auditioned by ear yet; tweak `tools/doo_voice.py` if it doesn't sound right.
+**The "doo" reference voice:** the box searches its own bank by voice name — `DOO` first, then `OOH`, `VOX`, `VOICE`, `CHOIR`, `AAH`, `HUM`, `SING` — and uses the first match (or just the current preset if none). For a guaranteed vocal sound, select a slot on the WiFi page and press **Put DOO voice in selected slot**: it inserts this project's own `DOO VOICE` patch (written from scratch for this project, CC0 — see `tools/doo_voice.py`). **Then Save and Send that bank** — the box can only program-change to a voice the FM-1 actually has. Auditioned on a real FM-1 and it sounds good for voice training; tweak `tools/doo_voice.py` to change it.
 
 **Mic:** the MAX9814 module's own onboard mic, facing out through a hole in the front panel — sing toward the box from a foot or two away. There's no mic jack; the module's automatic gain control makes up for the distance. If room noise registers as singing, first tie the module's `GAIN` pin to GND (50dB max gain instead of 60dB), then raise `GATE_RMS` in `pitch_detector.cpp` (lower it if quiet singing isn't detected). If detection is still unreliable, a close-up external mic (headset/lavalier on a 3.5mm jack wired to the capsule's pads) is the upgrade path. Other tuning knobs: `REF_MS` / `REF_TAIL_MS` in `sing_mode.ino` (how long the reference plays and how long the mic is ignored afterward — raise the tail if the FM-1's release still triggers hits).
 
