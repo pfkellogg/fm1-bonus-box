@@ -372,7 +372,7 @@ void assignPresetToSlotOne(int targetSlot) {
 //   GET  /song.bin, POST /song   the sing-mode song (see sing_mode.ino)
 //   POST /play, /stop            play the song's vocal track on the FM-1
 //   GET  /playstate              JSON: playing, note position, lyric (for the page's pads)
-//   POST /step                   play the song's next pitch for 1s; JSON of that step
+//   POST /step[?again=1]         play the song's next (or current) pitch for 1s; JSON of that step
 // All .syx parsing, loading and reordering happens in the browser; the box
 // only stores and sends the result.
 // ---------------------------------------------------------------------
@@ -492,7 +492,8 @@ void handleStep() {
     server.send(409, "text/plain", "No song on the box.");
     return;
   }
-  songStepNext();
+  if (server.hasArg("again")) songStepReplay();
+  else songStepNext();
   server.sendHeader("Cache-Control", "no-store");
   server.send(200, "application/json", songStepJson());
 }

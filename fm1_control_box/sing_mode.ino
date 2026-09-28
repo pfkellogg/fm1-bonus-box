@@ -323,13 +323,13 @@ void songStepOff() {
   midiProgramChange((uint8_t)playingIndex);
 }
 
-// Plays the song's next step (one pitch, repeats merged) for REF_MS in the
-// reference voice, wrapping to the first after the last. Stops playback.
-void songStepNext() {
+// Plays song step `pos` (one pitch, repeats merged) for REF_MS in the
+// reference voice. Stops playback.
+void songStepPlay(int pos) {
   songPlayStop();
   songStepOff();
   if (songCount == 0) return;
-  stepPos = (stepPos + 1) % songCount;
+  stepPos = ((pos % songCount) + songCount) % songCount;
   int ref = findReferenceVoice();
   if (ref >= 0) midiProgramChange((uint8_t)ref);
   midiControlChange(64, 0);
@@ -337,6 +337,15 @@ void songStepNext() {
   midiNoteOn((uint8_t)stepSounding, REF_VELOCITY);
   stepAt = millis();
   stepOffAt = stepAt + REF_MS;
+}
+
+// Pad 3: the next pitch, wrapping to the first after the last.
+void songStepNext() { songStepPlay(stepPos + 1); }
+
+// Pad 4: the current pitch again — the one playing now if the song is
+// playing (so pad 3 continues from there), else the last one stepped to.
+void songStepReplay() {
+  songStepPlay(playing ? playNotes[playPos].step : max(stepPos, 0));
 }
 
 // {"pos":4,"count":151,"note":64,"lyric":"sa"} — the step just played.

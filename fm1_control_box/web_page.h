@@ -68,6 +68,7 @@ a{color:var(--accent)}
 .pad.play.lit{background:#22c55e;border-color:#86efac;color:#062611;box-shadow:0 0 14px #22c55e}
 .pad:not(:disabled):active{transform:translateY(1px);box-shadow:none}
 .pad.play:disabled,.pad.stop:disabled,.pad.step:disabled{opacity:.45}
+#againBtn .pi{font-size:22px}
 .now{min-height:1.4em;margin:8px 0 0;font-family:ui-monospace,Menlo,monospace;font-size:14px}
 </style></head>
 <body><main>
@@ -82,13 +83,13 @@ a{color:var(--accent)}
 <button class="pad play" id="playBtn" disabled><span class="pn">PAD 1</span><span class="pi">&#9654;</span><span class="pl">Play</span></button>
 <button class="pad stop" id="stopBtn" disabled><span class="pn">PAD 2</span><span class="pi">&#9632;</span><span class="pl">Stop</span></button>
 <button class="pad step" id="stepBtn" disabled><span class="pn">PAD 3</span><span class="pi">&#9197;</span><span class="pl">Next pitch</span></button>
-<button class="pad" disabled><span class="pn">PAD 4</span></button>
+<button class="pad step" id="againBtn" disabled><span class="pn">PAD 4</span><span class="pi">&#8635;</span><span class="pl">Again</span></button>
 <button class="pad" disabled><span class="pn">PAD 5</span></button><button class="pad" disabled><span class="pn">PAD 6</span></button>
 <button class="pad" disabled><span class="pn">PAD 7</span></button><button class="pad" disabled><span class="pn">PAD 8</span></button>
 </div>
 <p class="now" id="nowPlaying"></p>
 <details class="muted"><summary>How the pads work</summary>
-<p><b>Pad 1 &#9654;</b> plays the song's vocal track on the FM-1 from the first sung note, in the DOO / voice preset. Tap it again to restart from the top. <b>Pad 2 &#9632;</b> stops it and silences the FM-1. <b>Pad 3 &#9197;</b> steps through the song one pitch at a time: each tap plays the next pitch for 1 second with its lyric (repeated notes of the same pitch count as one), and wraps to the start after the last. Pads 4&ndash;8 aren't used.</p>
+<p><b>Pad 1 &#9654;</b> plays the song's vocal track on the FM-1 from the first sung note, in the DOO / voice preset. Tap it again to restart from the top. <b>Pad 2 &#9632;</b> stops it and silences the FM-1. <b>Pad 3 &#9197;</b> steps through the song one pitch at a time: each tap plays the next pitch for 1 second with its lyric (repeated notes of the same pitch count as one), and wraps to the start after the last. <b>Pad 4 &#8635;</b> replays the current pitch: the one pad 3 last played, or, while the song is playing, the one playing now (the song stops there, and pad 3 carries on from it). Pads 5&ndash;8 aren't used.</p>
 <p>These are the same pads as on an Arturia Minilab3. With the Minilab3 and FM-1 plugged into a computer, a pad-player script there does the same thing from the real pads. The box itself has no MIDI input, so here you tap them on screen.</p>
 </details>
 <input type="file" id="songInput">
@@ -690,25 +691,29 @@ function showSongOnBox(name, count, timed = count > 0) {
   $('songOnBox').textContent = count ? 'On the box: "' + name + '" (' + count + ' notes)' + (timed ? '.' : '. Send it again to be able to play it.') : 'No song on the box yet. Sing mode uses the chromatic FREE list until you add one.';
   $('songRemoveBtn').disabled = !count;
   $('playBtn').disabled = !timed;
-  $('stopBtn').disabled = $('stepBtn').disabled = !count;
+  $('stopBtn').disabled = $('stepBtn').disabled = $('againBtn').disabled = !count;
 }
 
-// Pad 3: the box plays the next pitch for 1s and says which one it was.
+// Pads 3 and 4: the box plays the next / current pitch for 1s and says which one it was.
 let stepLitTimer = 0;
-$('stepBtn').onclick = async () => {
+async function stepPad(btn, path) {
   try {
-    const r = await fetch('/step', { method: 'POST' });
+    const r = await fetch(path, { method: 'POST' });
     if (!r.ok) throw new Error(await r.text());
     const s = await r.json();
     clearTimeout(pollTimer);
     $('playBtn').classList.remove('lit');
-    $('stepBtn').classList.add('lit');
+    $('stepBtn').classList.remove('lit');
+    $('againBtn').classList.remove('lit');
+    btn.classList.add('lit');
     clearTimeout(stepLitTimer);
-    stepLitTimer = setTimeout(() => $('stepBtn').classList.remove('lit'), 1000);
+    stepLitTimer = setTimeout(() => btn.classList.remove('lit'), 1000);
     $('nowPlaying').textContent = '♪ ' + noteLabel(s.note) + '  pitch ' + (s.pos + 1) + '/' + s.count + (s.lyric ? '  “' + s.lyric + '”' : '');
-    msg($('songMsg'), s.pos + 1 === s.count ? 'Last pitch; the next tap starts over.' : '');
+    msg($('songMsg'), s.pos + 1 === s.count ? 'Last pitch; pad 3 starts over next.' : '');
   } catch (err) { msg($('songMsg'), err.message, 'err'); }
-};
+}
+$('stepBtn').onclick = () => stepPad($('stepBtn'), '/step');
+$('againBtn').onclick = () => stepPad($('againBtn'), '/step?again=1');
 
 async function postPlay(path, okText) {
   try {
