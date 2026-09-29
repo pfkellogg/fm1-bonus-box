@@ -31,6 +31,15 @@
  *     128-voice bank, drag-and-drop to reorder (multi-select supported),
  *     save, send the result to the FM-1, and upload a song for sing mode —
  *     no computer software needed.
+ *   - USB KEYBOARD IN: the box's USB-C port runs as a USB host, so a
+ *     class-compliant USB MIDI keyboard (e.g. an M-Audio Keystation, which
+ *     has no 5-pin MIDI OUT) plugs straight into the box and plays the FM-1
+ *     through the box's MIDI OUT — no computer in between. Everything it
+ *     sends on its main port is forwarded (notes, sustain, pitch bend, mod
+ *     wheel, program changes), moved to the FM-1's channel and merged with
+ *     the box's own pedal/knob/sing-mode MIDI. See usb_midi_host.cpp.
+ *     Hold the knob button while powering on to skip USB host mode, so a
+ *     computer can see the box for flashing.
  *
  * No voice data ships with this firmware. The box starts with an empty
  * bank; everything in it comes from .syx files you load yourself, so the
@@ -71,6 +80,7 @@
  *   GPIO12 -> TFT RST
  *   GPIO13 -> TFT SCK
  *   GPIO14 -> TFT MOSI (SDA/DIN on the module)
+ *   GPIO19/20 -> USB-C D-/D+ (native USB, used as USB HOST for a keyboard)
  *   TFT BLK (backlight) -> 3V3 directly, always-on (no GPIO, no PWM dimming
  *     yet — same choice already proven in this project's fm1-midi-voice-tuner)
  *
@@ -97,6 +107,11 @@
  * exactly the kind of thing to confirm on the bench before trusting it —
  * if the FM-1 doesn't respond, try 33ohm/10ohm in place of the 220ohm
  * pair, or add a transistor/inverter buffer.
+ *
+ * USB keyboard power: in host mode the box must SUPPLY 5V to the keyboard,
+ * and the Super Mini can't switch its USB-C VBUS on by itself. Easiest: a
+ * USB-C OTG adapter/hub with a charging (PD) input — the charger then
+ * powers both the box (through VBUS, as usual) and the keyboard. See README.
  *
  * Sustain pedal/button node: same wiring as fm1_sustain_footswitch.ino
  * (pedal tip + panel button, both to this pin, ring/sleeve/other leg to
@@ -126,6 +141,7 @@
 
 #include "web_page.h"
 #include "pitch_detector.h"
+#include "usb_midi_host.h"
 
 // ---- Pins ----
 static const int PIN_MIDI_TX = 4;
@@ -322,6 +338,35 @@ void midiNoteOff(uint8_t note) {
 
 void sendSustain(bool on) {
   midiControlChange(64, on ? 127 : 0);
+}
+
+// ---- USB keyboard -> FM-1 ----
+bool usbHostOn = false;
+int usbShownCount = -1;  // device count the screen last showed
+
+// Forwards channel messages from a USB MIDI keyboard to the FM-1, moved to
+// MIDI_CHANNEL so the keyboard's own channel setting doesn't matter. Each
+// message goes out whole from this (the only) MIDI-writing thread, so it
+// can't interleave with the box's own messages. Returns true if the screen
+// should be redrawn (a Program Change moved the playing preset).
+bool forwardUsbMidi() {
+  bool presetMoved = false;
+  uint8_t p[4];
+  for (int n = 0; n < 32 && usbMidiHostRead(p); n++) {
+    if (p[0] >> 4) continue;  // cable 0 only (Keystation's 2nd port is its transport buttons)
+    uint8_t cin = p[0] & 0x0F;
+    if (cin < 0x08 || cin > 0x0E) continue;  // SysEx, system common, clock/active sensing
+    uint8_t type = p[1] & 0xF0;
+    MidiSerial.write(type | MIDI_CHANNEL);
+    MidiSerial.write(p[2] & 0x7F);
+    if (type != 0xC0 && type != 0xD0) MidiSerial.write(p[3] & 0x7F);
+    if (type == 0xC0) {  // keep the box's idea of what's playing in sync
+      playingIndex = p[2] & 0x7F;
+      if (liveBrowse) browseIndex = playingIndex;
+      presetMoved = true;
+    }
+  }
+  return presetMoved;
 }
 
 // Sends one quarter (0-3) of the box's bank as a standard DX7 32-voice
@@ -647,6 +692,13 @@ void drawScreen() {
   } else {
     printCentered(208, "tap:live hold:assign/wifi", 1, GC9A01A_WHITE);
   }
+
+  if (usbHostOn && usbMidiDeviceCount() > 0) {
+    char usbBuf[21];
+    const char *name = usbMidiDeviceName();
+    snprintf(usbBuf, sizeof(usbBuf), "%s", name[0] ? name : "USB keys");
+    printCentered(222, usbBuf, 1, GC9A01A_BLACK);
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -659,6 +711,10 @@ void setup() {
   pinMode(PIN_SING_BTN, INPUT_PULLUP);
 
   MidiSerial.begin(MIDI_BAUD, SERIAL_8N1, -1, PIN_MIDI_TX);
+
+  // Knob button held at power-on = leave the USB-C port as a normal device
+  // port (for flashing); otherwise it becomes a host for a USB keyboard.
+  if (digitalRead(PIN_ENC_BTN) == HIGH) usbHostOn = usbMidiHostBegin();
 
   SPI.begin(PIN_TFT_SCK, -1, PIN_TFT_MOSI, PIN_TFT_CS);
   tft.begin(TFT_SPI_HZ);
@@ -689,6 +745,14 @@ void loop() {
   }
   songPlayLoop();
   if (wifiModeActive) songLyricLoop();
+
+  // --- USB keyboard -> FM-1 ---
+  if (usbHostOn) {
+    bool moved = forwardUsbMidi();
+    int count = usbMidiDeviceCount();
+    if ((moved || count != usbShownCount) && !wifiModeActive && !singActive()) drawScreen();
+    usbShownCount = count;
+  }
 
   // --- Sustain pedal/button ---
   bool pressed = (digitalRead(PIN_SUSTAIN) == LOW);

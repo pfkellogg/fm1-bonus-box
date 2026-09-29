@@ -12,6 +12,7 @@ Same sustain-pedal/button job as v1, plus:
 - **A SING button toggles "sing on key" mode** — see [Sing on key mode](#sing-on-key-mode) below. A microphone (the MAX9814 mic module's own onboard mic, behind a hole in the front panel) feeds a pitch detector; the box plays a target note on the FM-1, then charts how close your voice is.
 - **A medium press (release between 400ms-3s) "Assigns"** the browsed preset to slot 1 of its bank. The FM-1 always powers on at whatever's in slot 001 (there's no separate boot-preset preference — confirmed by checking the manual's Global settings end to end and by testing directly on the device), so Assigning something from bank A is how you set the boot sound from the box itself.
 - **A long press (3s+) opens WiFi mode**: the box becomes its own WiFi access point serving a soundbank page, where you find `.syx` files on your phone/laptop, load them into the box, drag-and-drop to reorder (multi-select supported), save, and send the result to the FM-1. No computer software needed after the box itself is flashed.
+- **A USB MIDI keyboard plugs straight into the box** — see [USB keyboard in](#usb-keyboard-in). The box's USB-C port runs as a USB host and forwards what you play to the FM-1 through its MIDI OUT, so a keyboard without a 5-pin MIDI OUT (e.g. an M-Audio Keystation 49 MK3) can play the FM-1 with no computer.
 
 **Compiles clean** against `esp32:esp32:esp32s3` (79% flash / 32% RAM) as of 2026-09-23. **Not yet built or bench-tested** — no physical board yet. The web page was exercised in a desktop browser against a stand-in for the box's API (bank find/load/multi-select drag/save/send, song upload, DOO insert all worked); it hasn't run on the ESP32 or a phone yet. The pitch detector's algorithm was checked on the host against synthetic voices (134/135 test tones within 3 cents, 82-1047 Hz), not yet against a real mic. **Requires a partition scheme with LittleFS/SPIFFS** (Tools > Partition Scheme, e.g. "Default 4MB with spiffs") for the box's bank to survive a power cycle.
 
@@ -91,6 +92,24 @@ For learning to sing in tune. Tap SING: the box switches the FM-1 to a vocal "do
 
 **Mic:** the MAX9814 module's own onboard mic, facing out through a hole in the front panel — sing toward the box from a foot or two away. There's no mic jack; the module's automatic gain control makes up for the distance. If room noise registers as singing, first tie the module's `GAIN` pin to GND (50dB max gain instead of 60dB), then raise `GATE_RMS` in `pitch_detector.cpp` (lower it if quiet singing isn't detected). If detection is still unreliable, a close-up external mic (headset/lavalier on a 3.5mm jack wired to the capsule's pads) is the upgrade path. Other tuning knobs: `REF_MS` / `REF_TAIL_MS` in `sing_mode.ino` (how long the reference plays and how long the mic is ignored afterward — raise the tail if the FM-1's release still triggers hits).
 
+### USB keyboard in
+
+The ESP32-S3's native USB-C port runs as a **USB host** (ESP-IDF's USB host library, `usb_midi_host.cpp`). Any class-compliant USB MIDI keyboard plugged into it — directly, or through a USB hub (up to 4 MIDI devices) — plays the FM-1 through the box's MIDI OUT:
+
+```
+USB keyboard --USB--> box USB-C (host) --TRS MIDI OUT--> FM-1 MIDI IN
+```
+
+- **What's forwarded:** channel messages from the keyboard's main port (cable 0) — notes, CCs (sustain, mod wheel...), pitch bend, aftertouch, program changes — all moved to the FM-1's channel (`MIDI_CHANNEL`), so the keyboard's own channel setting doesn't matter. SysEx, clock/active sensing, and the keyboard's second port (the Keystation's transport buttons) are dropped.
+- **Merged** with the box's own pedal, knob and sing-mode MIDI; each message goes out whole, so they never interleave. A Program Change from the keyboard also moves the box's "playing" preset (and the browse position in LIVE).
+- The screen's bottom line shows the connected keyboard's name.
+
+**Powering the keyboard.** In host mode the box has to *supply* 5V to the keyboard, and the Super Mini can't turn its USB-C VBUS on by itself. The simple way: a **USB-C OTG adapter or mini hub with a charging (PD) input** (sold for using phones/tablets with USB devices while charging). The charger plugs into the adapter; the adapter powers the box through VBUS as usual *and* the keyboard. A bus-powered Keystation draws well under 100mA. (Alternative: feed 5V to the board's 5V pin and use a plain OTG adapter — only if your board has no diode between VBUS and 5V; check before trying.)
+
+**Flashing with host mode on.** Once this firmware runs, the USB-C port is a host, so a computer no longer sees the box as a serial port. To re-flash: **hold the knob button while powering the box on** — that skips USB host mode for that boot and the port behaves normally. (Or use the ESP32-S3's own method: hold BOOT while plugging in.)
+
+**Not yet tested on hardware** — compiles clean (85% flash / 38% RAM), but no keyboard has been plugged into a real box yet. On the bench, confirm: the keyboard's name appears on the screen, notes play the FM-1, sustain from both the keyboard and the box's pedal works, and unplugging/replugging the keyboard recovers.
+
 ### Schematic and layout
 
 | Schematic | Physical layout |
@@ -106,6 +125,7 @@ Both work from the box's own stored bank — never a read-modify-write of the re
 - A DX7 bank dump is always 32 voices, so both rewrite **all 32 presets** in a bank (001-032, 033-064, 065-096, or 097-128). Assign moves your chosen preset to slot 1 of its bank (the ones before it shift down one), saves that change to the box's own bank so it keeps matching the FM-1, and sends the bank. Anything on the real FM-1 in that range gets overwritten with the box's copy.
 - Neither will send a bank that still has empty slots.
 - After each dump **the FM-1 shows its own A/B/C/D bank-slot picker** and needs a physical knob turn on the FM-1 itself (Knob 1 for A, 2 for B, …) to commit. The box/page prompts you but can't press that knob — confirmed this step is required when doing it from a computer.
+- **Unconfirmed: whether the FM-1 accepts a bank dump on its TRS MIDI IN at all.** Every confirmed send so far went over the FM-1's USB port. On 2026-09-29 the same bank sent through a 5-pin MIDI interface (M-Audio AIR 192|6) to the FM-1's MIDI IN brought up no picker, twice, then worked immediately over USB. That could be the interface or adapter rather than the FM-1, but test Send from the box early on the bench — if the FM-1 ignores SysEx on MIDI IN, Assign/Send need another route.
 
 ### Parts
 
@@ -179,7 +199,7 @@ v1 drove this from 5V; at 3.3V the opto in the FM-1's MIDI IN gets less drive cu
 
 ### Flashing
 
-USB-C into the ESP32-S3 Mini for both power and flashing. **Disconnect the MIDI TX line (GPIO4) before uploading** if it's wired up — same class of gotcha as v1's Arduino, though the ESP32-S3's native USB-CDC serial is less likely to collide with GPIO4 than the Uno's shared pins 0/1 were.
+USB-C into the ESP32-S3 Mini for both power and flashing. **Hold the knob button while it powers up** once the USB-keyboard firmware is on it — otherwise the USB-C port starts as a USB host and the computer can't see the box (see [USB keyboard in](#usb-keyboard-in)). **Disconnect the MIDI TX line (GPIO4) before uploading** if it's wired up — same class of gotcha as v1's Arduino, though the ESP32-S3's native USB-CDC serial is less likely to collide with GPIO4 than the Uno's shared pins 0/1 were.
 
 ---
 
@@ -253,6 +273,7 @@ fm1_control_box/                       v2 — ESP32-S3 firmware
   web_page.h                           the WiFi-mode soundbank + song page
   sing_mode.ino                        sing on key mode
   pitch_detector.cpp / .h              mic sampling + YIN pitch detection (core 0)
+  usb_midi_host.cpp / .h               USB host: reads a USB MIDI keyboard on the USB-C port
 fm1_sustain_footswitch.ino             v1 — Arduino Uno firmware
 fm1_soundbank_app/                     computer-side CLI: list/reorder/send a soundbank over USB MIDI
   fm1_soundbank.py
