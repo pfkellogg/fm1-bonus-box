@@ -282,6 +282,11 @@ fm1_soundbank_app/                     computer-side CLI: list/reorder/send a so
   reference/presets_provenance.json    where each FM-1 factory voice came from (names/sources only, no voice data)
 tools/
   doo_voice.py                         the project's own DOO VOICE patch (CC0), sing mode's reference sound
+  wendy_flute.py                       WENDY FLUT: Moog/Switched-On Bach-style flute (CC0)
+  abbey_brass.py                       ABBEY BRSS: bright 60s ensemble synth brass (CC0)
+  abbey_strings.py                     ABBEY STRS: warm bowed string ensemble, "Eleanor Rigby" spirit (CC0)
+  oboe_voice.py                        OBOE: nasal, reedy double reed (CC0)
+                                       (each prints a 128-byte packed DX7 voice; written from scratch, no third-party voice data)
 schematics/
   generate_fm1_control_box_schematic.py / fm1_control_box_*.{pdf,png,svg}   v2 diagrams
   generate_fm1_footswitch_schematic.py / fm1_footswitch_*.{pdf,png,svg}     v1 diagrams
